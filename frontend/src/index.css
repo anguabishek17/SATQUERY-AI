@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { height: 100%; }
+body { font-family: 'Inter', system-ui, sans-serif; }
+
+::selection { background: #1D9E75; color: #0B0F0E; }
+
+.scanline {
+  background-image: repeating-linear-gradient(
+    to bottom, rgba(231,239,236,0.02) 0px, rgba(231,239,236,0.02) 1px, transparent 1px, transparent 3px
+  );
+}
+
+.leaflet-container { background: #0F1413 !important; }

@@ -1,0 +1,23 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+backend/venv/
+backend/data/uploads/*
+backend/data/reports/*
+backend/data/adapters/*
+backend/data/audit.sqlite3
+!backend/data/.gitkeep
+
+node_modules/
+dist/
+.env
+
+# Model weights and Hugging Face cache
+*.bin
+*.safetensors
+*.pt
+*.pth
+.cache/
+hf_cache/
+
