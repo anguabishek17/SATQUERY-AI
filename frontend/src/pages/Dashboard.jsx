@@ -76,7 +76,7 @@ export default function Dashboard() {
   const hasFootprints = features.length > 0
 
   const isBuildingTask = result?.task === 'object_counting'
-  const isBuildingLoaded = result?.raw?.detector_status === 'loaded'
+  const isBuildingLoaded = result?.detector_status === 'loaded' || result?.raw?.detector_status === 'loaded' || result?.execution_trace?.some(step => step.detail?.includes('(LOADED [OK])'))
 
   async function handleLocationSearch(e) {
     e.preventDefault()
@@ -536,7 +536,7 @@ export default function Dashboard() {
                     <span className="text-slate-600">○</span>
                   )}
                   <span className={isBuildingTask && !isBuildingLoaded ? 'text-amber-300 font-mono' : ''}>
-                    {isBuildingTask && isBuildingLoaded ? 'Executing DeepLabV3+ building detector' : isBuildingTask ? 'Building detector NOT LOADED' : 'Executing building detector (Not Run)'}
+                    {isBuildingTask && isBuildingLoaded ? 'Executing building detector (Loaded [OK])' : isBuildingTask ? 'Building detector NOT LOADED' : 'Executing building detector (Not Run)'}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">

@@ -106,5 +106,6 @@ class QueryResponse(BaseModel):
     turn_count: int
     chain: Optional[list[ChainStepModel]] = None
     change_stats: Optional[ChangeStatsModel] = None
+    detector_status: Optional[str] = None
 
 

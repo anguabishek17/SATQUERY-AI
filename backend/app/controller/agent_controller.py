@@ -280,4 +280,5 @@ def handle_query(
         turn_count=context_memory.turn_count(session_id),
         chain=chain,
         change_stats=change_stats,
+        detector_status=detector_status,
     )
