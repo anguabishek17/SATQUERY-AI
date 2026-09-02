@@ -519,50 +519,22 @@ export default function Dashboard() {
 
               {/* Step-by-step Honest Execution Checklist */}
               <div className="space-y-2.5 text-xs text-slate-300 font-sans">
-                <div className="flex items-center gap-2">
-                  <span className="text-emerald-400">✓</span>
-                  <span>Understanding query intent</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-emerald-400">✓</span>
-                  <span>Checking image sensor compatibility</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {isBuildingTask && isBuildingLoaded ? (
-                    <span className="text-emerald-400">✓</span>
-                  ) : isBuildingTask ? (
-                    <span className="text-amber-400 font-bold">⚠</span>
-                  ) : (
-                    <span className="text-slate-600">○</span>
-                  )}
-                  <span className={isBuildingTask && !isBuildingLoaded ? 'text-amber-300 font-mono' : ''}>
-                    {isBuildingTask && isBuildingLoaded ? 'Executing building detector (Loaded [OK])' : isBuildingTask ? 'Building detector NOT LOADED' : 'Executing building detector (Not Run)'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={aoiBbox ? 'text-emerald-400' : 'text-slate-600'}>
-                    {aoiBbox ? '✓' : '○'}
-                  </span>
-                  <span>{aoiBbox ? 'Filtering AOI bounding box' : 'AOI bounding box (Full Scene)'}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={result?.physical_metrics ? 'text-emerald-400' : 'text-slate-600'}>
-                    {result?.physical_metrics ? '✓' : '○'}
-                  </span>
-                  <span>Calculating physical density & area</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={result ? 'text-emerald-400' : 'text-slate-600'}>
-                    {result ? '✓' : '○'}
-                  </span>
-                  <span>Generating GeoChat summary</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={hasFootprints ? 'text-emerald-400' : 'text-slate-600'}>
-                    {hasFootprints ? '✓' : '○'}
-                  </span>
-                  <span>Preparing GeoJSON vector overlay</span>
-                </div>
+                {result?.execution_trace ? (
+                  result.execution_trace.map((t, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <span className="text-emerald-400 mt-0.5">✓</span>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-slate-200 capitalize">{t.step.replace(/_/g, ' ')}</span>
+                        <span className="text-[10px] text-slate-400">{t.detail}</span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex items-center gap-2 text-slate-500">
+                    <span>○</span>
+                    <span>Waiting for query execution...</span>
+                  </div>
+                )}
               </div>
             </div>
 

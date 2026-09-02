@@ -13,6 +13,7 @@ opencv-python-headless<4.10
 torch>=2.2.0
 torchvision>=0.17.0
 ultralytics>=8.0.0
+openai>=1.0.0
 # --- ML stack: required to activate real VQA/grounding (currently honest fallbacks) ---
 # On your RTX 5050 (8GB VRAM) laptop, install these and set the env vars documented
 # in app/tools/vqa_caption.py and app/tools/grounding.py:

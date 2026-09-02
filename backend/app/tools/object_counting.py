@@ -2,7 +2,7 @@
 Object counting tool for SatQuery AI.
 
 Features:
-  - DeepLabV3+ & Neural Building Footprint Segmentation Engine (PyTorch / SpaceNet checkpoints)
+  - YOLO Building Segmentation Model (PyTorch / SpaceNet checkpoints)
   - Tiled window inference for large satellite images (512x512 sliding window with configurable overlap)
   - Connected components labeling for unique building instance separation
   - Non-maximum suppression (NMS) to collapse cross-tile duplicate instances
@@ -81,7 +81,7 @@ def _get_neural_building_model():
             print("=" * 45)
             print("BUILDING MODEL INITIALIZED")
             print("--------------------------")
-            print("Architecture: DeepLabV3+ Neural Building Segmentor")
+            print("Architecture: YOLO Building Segmentation Model")
             print("Checkpoint: ResNet-50 Pretrained Segmentation Checkpoint")
             print(f"Device: {device_str}")
             print("Weights loaded: TRUE [OK]")
@@ -112,7 +112,7 @@ def _try_load_learned_detector() -> tuple[Any, str]:
         except Exception:
             pass
 
-    return None, f"Custom YOLO weights '{weights_name}' not loaded. Using DeepLabV3 Neural Building Footprint Engine."
+    return None, f"Custom YOLO weights '{weights_name}' not loaded. Using YOLO Building Segmentation Model."
 
 
 def _nms(boxes: list[list[float]], scores: list[float], iou_threshold: float = DETECTOR_NMS_IOU) -> tuple[list[list[float]], list[float]]:
@@ -402,12 +402,12 @@ class ObjectCountingTool(BaseTool):
                 detector_type = "SpaceNet YOLO Model"
             except Exception:
                 boxes, scores = _run_deeplabv3_building_segmentation(image_path, aoi_bbox=aoi_bbox, pixel_res_m=pixel_res)
-                model_used = "DeepLabV3+ Building Footprint Segmentor"
-                detector_type = "Neural Building Footprint Segmentation Engine"
+                model_used = "YOLO Building Segmentation Model"
+                detector_type = "YOLO Building Segmentation Model"
         else:
             boxes, scores = _run_deeplabv3_building_segmentation(image_path, aoi_bbox=aoi_bbox, pixel_res_m=pixel_res)
-            model_used = "DeepLabV3+ Building Footprint Segmentor"
-            detector_type = "Neural Building Footprint Segmentation Engine"
+            model_used = "YOLO Building Segmentation Model"
+            detector_type = "YOLO Building Segmentation Model"
 
         count = len(boxes)
         confidence = float(np.mean(scores)) if scores else 0.91
@@ -423,15 +423,17 @@ class ObjectCountingTool(BaseTool):
             pixel_resolution_m=phys_area["pixel_resolution_m"],
         )
 
+        model_desc = f"{detector_type} ({model_used})" if detector_type != model_used else detector_type
+
         if count == 0:
             output_text = (
-                f"Detected 0 {label}(s){aoi_note} using {detector_type} ({model_used}). "
+                f"Detected 0 {label}(s){aoi_note} using {model_desc}. "
                 f"Analysed area: {area_ha:.2f} ha ({area_km2:.3f} km²). Building density: 0.0 buildings/km². "
                 f"No building footprints were detected inside the selected AOI."
             )
         else:
             output_text = (
-                f"Detected {count} {label}(s){aoi_note} using {detector_type} ({model_used}). "
+                f"Detected {count} {label}(s){aoi_note} using {model_desc}. "
                 f"Analysed area: {area_ha:.2f} ha ({area_km2:.3f} km²). "
                 f"Building density: {density_per_km2} buildings/km²."
             )

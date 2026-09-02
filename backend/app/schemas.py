@@ -22,6 +22,7 @@ class TaskType(str, Enum):
     change_vqa = "change_vqa"
     change_description = "change_description"
     optical_sar_fusion = "optical_sar_fusion"
+    dynamic_analysis = "dynamic_analysis"
 
 
 class ImageRef(BaseModel):

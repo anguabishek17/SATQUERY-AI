@@ -49,4 +49,4 @@ def classify(query: str, input_config: InputConfig) -> TaskType:
         return TaskType.grounding
     if _matches(_CAPTION_PATTERNS, query):
         return TaskType.captioning
-    return TaskType.vqa  # default single-image task
+    return TaskType.dynamic_analysis  # dynamic analysis is now the default instead of vqa

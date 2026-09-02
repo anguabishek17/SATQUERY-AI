@@ -26,6 +26,7 @@ from app.tools.grounding import GroundingTool
 from app.tools.object_counting import ObjectCountingTool
 from app.tools.sar_fusion import SARFusionTool
 from app.tools.vqa_caption import VQACaptionTool
+from app.tools.dynamic_analysis_tool import DynamicAnalysisTool
 
 _REGISTRY = {
     TaskType.vqa: VQACaptionTool(),
@@ -35,6 +36,7 @@ _REGISTRY = {
     TaskType.change_vqa: ChangeDetectionTool(),
     TaskType.change_description: ChangeDetectionTool(),
     TaskType.optical_sar_fusion: SARFusionTool(),
+    TaskType.dynamic_analysis: DynamicAnalysisTool(),
 }
 
 
