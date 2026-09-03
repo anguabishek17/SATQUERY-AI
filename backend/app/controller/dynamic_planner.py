@@ -27,8 +27,8 @@ def determine_evidence_required(query: str) -> Dict[str, Any]:
     needs_veg = re.search(r'\b(vegetation|greenery|forest|trees|crop|agriculture|rural)\b', query_lower)
     needs_built = re.search(r'\b(building|buildings|urban|built-up|structure|house|road|settlement)\b', query_lower)
     needs_change = re.search(r'\b(change|changed|difference|compare.*time|before.*after|flood|flooding)\b', query_lower)
-    needs_broad = re.search(r'\b(summary|summarize|what can you identify|describe)\b', query_lower)
-    needs_spatial = re.search(r'\b(compare.*(north|south|east|west|upper|lower|side)|which side|where are.*concentrated|more.*than)', query_lower)
+    needs_broad = re.search(r'\b(summary|summarize|what can you identify|describe|major features?|stands? out|landscape|land.?use|human (activity|modification)|strongest evidence|what (is|are|does) this|give me)\b', query_lower)
+    needs_spatial = re.search(r'\b(compare.*(north|south|east|west|upper|lower|side)|which side|where are.*concentrated|more.*than|concentrated|distribution|most developed|which part|which (area|region|portion))\b', query_lower)
 
     if re.search(r'\b(how many|count|number of)\b', query_lower):
         plan["numeric_metrics_required"] = True
@@ -72,12 +72,16 @@ def determine_evidence_required(query: str) -> Dict[str, Any]:
         plan["reasoning_tasks"].append("spatial_comparison")
         
     if needs_broad or not plan["evidence_required"]:
-        # If broad or no specific evidence was triggered, gather broad evidence
+        # Broad/scene-level questions: gather all available evidence
         plan["evidence_required"].update(["water", "vegetation", "buildings", "built_up"])
         plan["tools_required"].update(["optical_processing", "object_counting"])
         if needs_change:
             plan["evidence_required"].add("change")
         plan["reasoning_tasks"].append("broad_scene_summary")
+        # Also trigger spatial only for directional/comparative questions, NOT for pure scene-description
+        if re.search(r'\b(most developed|concentrated|distribution|which.*more|which (part|portion|area|region))\b', query_lower):
+            plan["evidence_required"].add("spatial_distribution")
+            plan["reasoning_tasks"].append("spatial_comparison")
 
     # Convert sets to lists for JSON serialization
     plan["evidence_required"] = list(plan["evidence_required"])

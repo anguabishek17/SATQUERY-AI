@@ -12,6 +12,7 @@ Features:
 """
 
 import os
+import re
 from typing import Any, Optional
 import numpy as np
 from PIL import Image
@@ -326,6 +327,10 @@ class ObjectCountingTool(BaseTool):
         image = images[0]
         label = _target_label(query)
         target_class = _LABEL_TO_DETECTOR_CLASS.get(label, label)
+
+        if re.search(r'\b(relationship|vegetation|greenery|dominant|versus|vs|landscape|infer|observation|suggest|activity|analysis|compare)\b', query.lower()):
+            from app.tools.dynamic_analysis_tool import DynamicAnalysisTool
+            return DynamicAnalysisTool().run(query, images, aoi_bbox=aoi_bbox)
 
         if label in _AREA_NOT_COUNT_LABELS:
             return ToolResult(

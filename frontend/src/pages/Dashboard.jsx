@@ -118,6 +118,9 @@ export default function Dashboard() {
 
     try {
       const res = await runQuery(textToSubmit, activeImages || [], sessionId, aoiBbox)
+      console.log('Query Response Task:', res?.task)
+      console.log('Query Response Execution Trace:', res?.execution_trace)
+      console.log('Query Response Raw:', res?.raw)
       setResult(res)
       setSessionId(res.session_id)
 
@@ -256,7 +259,6 @@ export default function Dashboard() {
                   setMapCapturedImages(null)
                 }
                 setAoiBbox(null)
-                setResult(null)
               }}
             />
           </div>
@@ -519,12 +521,14 @@ export default function Dashboard() {
 
               {/* Step-by-step Honest Execution Checklist */}
               <div className="space-y-2.5 text-xs text-slate-300 font-sans">
-                {result?.execution_trace ? (
+                {result?.execution_trace && result.execution_trace.length > 0 ? (
                   result.execution_trace.map((t, i) => (
                     <div key={i} className="flex items-start gap-2">
-                      <span className="text-emerald-400 mt-0.5">✓</span>
+                      <span className="text-emerald-400 mt-0.5 font-bold">✓</span>
                       <div className="flex flex-col">
-                        <span className="font-medium text-slate-200 capitalize">{t.step.replace(/_/g, ' ')}</span>
+                        <span className="font-medium text-slate-200 capitalize">
+                          {t.step ? t.step.replace(/_/g, ' ') : 'Step'}
+                        </span>
                         <span className="text-[10px] text-slate-400">{t.detail}</span>
                       </div>
                     </div>

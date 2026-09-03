@@ -354,18 +354,19 @@ class VQACaptionTool(BaseTool):
             }
             aoi_scope_str = f"within selected AOI {[round(v,1) for v in aoi_bbox]}" if aoi_bbox else "across the full scene"
             fallback_answer = (
-                f"Selected region ({aoi_scope_str}) analyzed using multi-spectral and spatial feature extraction. "
-                "Dominant land-cover classes include dense built-up structures, urban road infrastructure, and surrounding vegetation. "
-                "Detailed physical metrics, building count, and vector footprint overlays are rendered in the GIS workspace."
+                f"Visual scene analysis ({aoi_scope_str}): The GeoChat visual analysis service is currently offline. "
+                "For quantitative measurements (building count, physical area, spectral indices), "
+                "please use the dedicated query types: 'How many buildings?', 'Is there water?', etc. "
+                "GeoChat provides free-form image descriptions when the service is running."
             )
             return ToolResult(
                 task=task,
-                tool_name=f"{self.name} (specialist fallback)",
+                tool_name=f"{self.name} (offline)",
                 output_text=fallback_answer,
-                confidence=0.65,
+                confidence=0.0,
                 confidence_calibrated=False,
                 physical_metrics=phys_metrics,
-                raw={"geochat_status": "offline_or_fallback", "aoi_bbox": aoi_bbox},
+                raw={"geochat_status": "offline", "aoi_bbox": aoi_bbox},
             )
 
         finally:

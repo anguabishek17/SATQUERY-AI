@@ -20,6 +20,19 @@ _CAPTION_PATTERNS = [r"\bdescribe\b", r"\bcaption\b", r"\bsummar", r"\bwhat.*vis
 _CHANGE_PATTERNS = [r"\bchang", r"\bbefore and after\b", r"\bincreased\b", r"\bdecreased\b", r"\bcompare.*dates\b"]
 _FUSION_PATTERNS = [r"\boptical and sar\b", r"\btogether\b", r"\bboth images\b", r"\bfuse\b", r"\bjoint\b"]
 
+# Questions that mention "building/structure/density" but are actually asking
+# for reasoning, inference, or scene interpretation — must route to
+# dynamic_analysis, not to the bare object counter.
+_ANALYTICAL_OVERRIDE_PATTERNS = [
+    r"\bsuggest\b", r"\binfer\b", r"\bimpl[yi]\b", r"\bhuman activity\b",
+    r"\blandscape\b", r"\bland.?use\b", r"\bmodification\b", r"\bconcentrated\b",
+    r"\bdistribution\b", r"\bdominant\b", r"\brelationship\b", r"\bstands? out\b",
+    r"\bfeatures?\b", r"\bobservation\b", r"\bstrongest evidence\b",
+    r"\bmajor\b", r"\bdeveloped\b", r"\bcompare\b", r"\bvs\b", r"\bversus\b",
+    r"\bwhat (is|are|does|can)\b", r"\bwhich (part|area|region|side|portion)\b",
+    r"\bgive me\b", r"\bthree\b", r"\bwhat (can|could) you\b",
+]
+
 
 def _matches(patterns: list[str], text: str) -> bool:
     text = text.lower()
@@ -40,7 +53,12 @@ def classify(query: str, input_config: InputConfig) -> TaskType:
     if input_config == InputConfig.cross_modal:
         return TaskType.optical_sar_fusion
 
-    # single image — counting is checked first: "how many buildings are
+    # single image — analytical reasoning queries are routed to dynamic_analysis
+    # even if they mention "building" or "structure" keywords.
+    if _matches(_ANALYTICAL_OVERRIDE_PATTERNS, query):
+        return TaskType.dynamic_analysis
+
+    # counting is checked before captioning: "how many buildings are
     # visible" would otherwise also match the captioning pattern below
     # ("visible") and get routed to a tool that can't count reliably.
     if _matches(_COUNTING_PATTERNS, query):
