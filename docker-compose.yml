@@ -1,16 +1,45 @@
+version: '3.8'
+
 services:
   backend:
-    build: ./backend
+    container_name: satquery-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     volumes:
       - ./backend/data:/app/data
     environment:
+      - PYTHONUNBUFFERED=1
       - LOW_CONFIDENCE_THRESHOLD=0.55
+      - DATA_DIR=/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - satquery-network
 
   frontend:
-    build: ./frontend
+    container_name: satquery-frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     ports:
       - "4173:4173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - satquery-network
+
+networks:
+  satquery-network:
+    driver: bridge
