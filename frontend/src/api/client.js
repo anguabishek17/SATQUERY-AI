@@ -28,11 +28,15 @@ export async function uploadImage(file, modality, acquisitionDate) {
     })
     if (!res.ok) {
       const errJson = await res.json().catch(() => ({}))
-      throw new Error(getErrorMessage(errJson) || 'Upload failed')
+      throw new Error(getErrorMessage(errJson) || `Upload failed (HTTP ${res.status})`)
     }
     return res.json()
   } catch (err) {
-    throw new Error(getErrorMessage(err))
+    // Distinguish network errors (backend unreachable) from HTTP errors
+    if (err instanceof TypeError && err.message === 'Failed to fetch') {
+      throw new Error('Upload failed: Backend unavailable (server may not be running on port 8000)')
+    }
+    throw new Error(`Upload failed: ${getErrorMessage(err)}`)
   }
 }
 
@@ -49,7 +53,10 @@ export async function runQuery(query, images, sessionId, aoiBbox) {
     }
     return res.json()
   } catch (err) {
-    throw new Error(getErrorMessage(err))
+    if (err instanceof TypeError && err.message === 'Failed to fetch') {
+      throw new Error('Query failed: Backend unavailable (server may not be running on port 8000)')
+    }
+    throw new Error(`Query failed: ${getErrorMessage(err)}`)
   }
 }
 
@@ -62,7 +69,10 @@ export async function geocodeLocation(query) {
     }
     return res.json()
   } catch (err) {
-    throw new Error(getErrorMessage(err))
+    if (err instanceof TypeError && err.message === 'Failed to fetch') {
+      throw new Error('Geocoding failed: Backend unavailable (server may not be running on port 8000)')
+    }
+    throw new Error(`Geocoding failed: ${getErrorMessage(err)}`)
   }
 }
 

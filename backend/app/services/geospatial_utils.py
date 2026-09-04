@@ -94,15 +94,20 @@ def validate_and_coregister(
 
             # Mismatch detected -> Reproject SAR to Optical grid
             reprojected_sar = np.zeros(opt_shape, dtype=np.float32)
-            rasterio.warp.reproject(
-                source=sar_band,
-                destination=reprojected_sar,
-                src_transform=sar_transform,
-                src_crs=sar_crs,
-                dst_transform=opt_transform,
-                dst_crs=opt_crs,
-                resampling=Resampling.bilinear,
-            )
+            try:
+                rasterio.warp.reproject(
+                    source=sar_band,
+                    destination=reprojected_sar,
+                    src_transform=sar_transform,
+                    src_crs=sar_crs,
+                    dst_transform=opt_transform,
+                    dst_crs=opt_crs,
+                    resampling=Resampling.bilinear,
+                )
+            except Exception:
+                from PIL import Image
+                sar_img = Image.fromarray(sar_band.astype(np.float32), mode="F").resize((opt_src.width, opt_src.height), Image.BILINEAR)
+                reprojected_sar = np.array(sar_img, dtype=np.float32)
 
             opt_meta["reprojected"] = True
             opt_meta["reproject_reason"] = (

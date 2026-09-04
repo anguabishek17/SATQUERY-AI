@@ -132,6 +132,8 @@ export default function SatelliteMapWorkspace({
 }) {
   const [opacity, setOpacity] = useState(0.85)
   const [selectedBuilding, setSelectedBuilding] = useState(null)
+  const [imgW, setImgW] = useState(512)
+  const [imgH, setImgH] = useState(512)
   const [isDrawing, setIsDrawing] = useState(false)
   const [dragStart, setDragStart] = useState(null)
   const [draftAoi, setDraftAoi] = useState(null)
@@ -193,10 +195,10 @@ export default function SatelliteMapWorkspace({
 
   const handleMouseUp = useCallback(() => {
     if (!isDrawing || !draftAoi) return
-    const x1 = draftAoi.x1 * 512
-    const x2 = draftAoi.x2 * 512
-    const y1 = draftAoi.y1 * 512
-    const y2 = draftAoi.y2 * 512
+    const x1 = draftAoi.x1 * imgW
+    const x2 = draftAoi.x2 * imgW
+    const y1 = draftAoi.y1 * imgH
+    const y2 = draftAoi.y2 * imgH
 
     setDragStart(null)
     setDraftAoi(null)
@@ -205,7 +207,7 @@ export default function SatelliteMapWorkspace({
     if (x2 - x1 > 5 && y2 - y1 > 5) {
       onAoiChange?.([x1, y1, x2, y2])
     }
-  }, [isDrawing, draftAoi, onAoiChange])
+  }, [isDrawing, draftAoi, onAoiChange, imgW, imgH])
 
   function handleExportGeoJSON() {
     if (!geojsonOverlay) return
@@ -327,6 +329,12 @@ export default function SatelliteMapWorkspace({
             <img
               src={activeImageSrc}
               alt="Satellite Scene"
+              onLoad={(e) => {
+                const nw = e.currentTarget.naturalWidth || 512
+                const nh = e.currentTarget.naturalHeight || 512
+                setImgW(nw)
+                setImgH(nh)
+              }}
               className={`h-full w-full object-cover pointer-events-none transition-opacity duration-300 ${
                 activeLayers.trueColor ? 'opacity-100' : 'opacity-30'
               }`}
@@ -352,26 +360,26 @@ export default function SatelliteMapWorkspace({
               {aoiBbox && !draftAoi && (
                 <g>
                   <rect
-                    x={`${(aoiBbox[0] / 512) * 100}%`}
-                    y={`${(aoiBbox[1] / 512) * 100}%`}
-                    width={`${((aoiBbox[2] - aoiBbox[0]) / 512) * 100}%`}
-                    height={`${((aoiBbox[3] - aoiBbox[1]) / 512) * 100}%`}
+                    x={`${(aoiBbox[0] / imgW) * 100}%`}
+                    y={`${(aoiBbox[1] / imgH) * 100}%`}
+                    width={`${((aoiBbox[2] - aoiBbox[0]) / imgW) * 100}%`}
+                    height={`${((aoiBbox[3] - aoiBbox[1]) / imgH) * 100}%`}
                     fill="rgba(99, 102, 241, 0.15)"
                     stroke="#818CF8"
                     strokeWidth="2.5"
                     rx="4"
                   />
                   <rect
-                    x={`${(aoiBbox[0] / 512) * 100}%`}
-                    y={`${(aoiBbox[1] / 512) * 100 - 4}%`}
+                    x={`${(aoiBbox[0] / imgW) * 100}%`}
+                    y={`${(aoiBbox[1] / imgH) * 100 - 4}%`}
                     width="125"
                     height="20"
                     fill="#4F46E5"
                     rx="4"
                   />
                   <text
-                    x={`${(aoiBbox[0] / 512) * 100 + 2}%`}
-                    y={`${(aoiBbox[1] / 512) * 100 - 1}%`}
+                    x={`${(aoiBbox[0] / imgW) * 100 + 2}%`}
+                    y={`${(aoiBbox[1] / imgH) * 100 - 1}%`}
                     fill="#FFFFFF"
                     fontSize="9.5"
                     fontWeight="bold"
@@ -402,10 +410,10 @@ export default function SatelliteMapWorkspace({
                     }}
                     className="absolute border-2 border-rose-500 bg-rose-500/20 hover:bg-rose-500/40 hover:border-white cursor-pointer transition-all z-20 rounded-sm shadow-[0_0_8px_rgba(239,68,68,0.4)]"
                     style={{
-                      left: `${(bx1 / 512) * 100}%`,
-                      top: `${(by1 / 512) * 100}%`,
-                      width: `${((bx2 - bx1) / 512) * 100}%`,
-                      height: `${((by2 - by1) / 512) * 100}%`,
+                      left: `${(bx1 / imgW) * 100}%`,
+                      top: `${(by1 / imgH) * 100}%`,
+                      width: `${((bx2 - bx1) / imgW) * 100}%`,
+                      height: `${((by2 - by1) / imgH) * 100}%`,
                       opacity: opacity,
                     }}
                   />

@@ -65,14 +65,32 @@ def _load_bands(optical_ref: ImageRef, sar_ref: ImageRef) -> tuple[np.ndarray, n
     optical_path = str(saved_path(optical_ref.file_id))
     sar_path = str(saved_path(sar_ref.file_id))
     try:
-        import rasterio
-        sar_vv_db, _ = validate_and_coregister(optical_path, sar_path)
-        sar_vv_db = _convert_sar_to_db(sar_vv_db)
-        with rasterio.open(optical_path) as opt_src:
-            green = _safe_normalize(opt_src.read(2).astype(np.float64)) if opt_src.count >= 2 else np.zeros((200, 200))
-            nir = _safe_normalize(opt_src.read(3).astype(np.float64)) if opt_src.count >= 3 else np.zeros((200, 200))
-            swir = _safe_normalize(opt_src.read(4).astype(np.float64)) if opt_src.count >= 4 else None
-            return green, nir, swir, sar_vv_db
+        if optical_path.lower().endswith((".tif", ".tiff")) and sar_path.lower().endswith((".tif", ".tiff")):
+            import rasterio
+            sar_vv_db, _ = validate_and_coregister(optical_path, sar_path)
+            sar_vv_db = _convert_sar_to_db(sar_vv_db)
+            with rasterio.open(optical_path) as opt_src:
+                green = _safe_normalize(opt_src.read(2).astype(np.float64)) if opt_src.count >= 2 else np.zeros((200, 200))
+                nir = _safe_normalize(opt_src.read(3).astype(np.float64)) if opt_src.count >= 3 else np.zeros((200, 200))
+                swir = _safe_normalize(opt_src.read(4).astype(np.float64)) if opt_src.count >= 4 else None
+        else:
+            opt_pil = Image.open(optical_path).convert("RGB")
+            sar_pil = Image.open(sar_path).convert("L")
+            if sar_pil.size != opt_pil.size:
+                sar_pil = sar_pil.resize(opt_pil.size, Image.BILINEAR)
+            opt_img = np.array(opt_pil, dtype=np.float64) / 255.0
+            sar_img = np.array(sar_pil, dtype=np.float64)
+            sar_vv_db = _convert_sar_to_db(sar_img)
+            green = opt_img[:, :, 1]
+            nir = opt_img[:, :, 2]
+            swir = None
+
+        ref_h, ref_w = green.shape[:2]
+        if sar_vv_db.shape[:2] != (ref_h, ref_w):
+            img = Image.fromarray(sar_vv_db.astype(np.float32), mode="F").resize((ref_w, ref_h), Image.BILINEAR)
+            sar_vv_db = np.array(img, dtype=np.float64)
+
+        return green, nir, swir, sar_vv_db
     except Exception:
         size = 200
         rng = np.random.default_rng(abs(hash((optical_ref.file_id, sar_ref.file_id))) % (2 ** 32))
@@ -152,23 +170,38 @@ class SARFusionTool(BaseTool):
                         red = _safe_normalize(opt_src.read(red_idx).astype(np.float64))
 
             except Exception as exc:
-                return ToolResult(
-                    task=TaskType.optical_sar_fusion,
-                    tool_name=self.name,
-                    output_text=f"GeoTIFF co-registration / band reading failed: {exc}",
-                    confidence=0.0,
-                    raw={"error": str(exc)},
-                )
-        else:
+                is_geotiff = False
+
+        if not is_geotiff or green is None:
             try:
-                opt_img = np.array(Image.open(optical_path).convert("RGB"), dtype=np.float64) / 255.0
-                sar_img = np.array(Image.open(sar_path).convert("L"), dtype=np.float64)
+                opt_pil = Image.open(optical_path).convert("RGB")
+                sar_pil = Image.open(sar_path).convert("L")
+
+                opt_orig_size = opt_pil.size   # (W, H)
+                sar_orig_size = sar_pil.size
+
+                # --- Spatial alignment: resample SAR to optical grid ---
+                if sar_pil.size != opt_pil.size:
+                    sar_pil = sar_pil.resize(opt_pil.size, Image.BILINEAR)
+                    optical_meta["resampled"] = True
+                    optical_meta["resample_reason"] = (
+                        f"SAR {sar_orig_size[0]}x{sar_orig_size[1]} resampled to "
+                        f"optical {opt_orig_size[0]}x{opt_orig_size[1]} (bilinear)"
+                    )
+
+                opt_img = np.array(opt_pil, dtype=np.float64) / 255.0
+                sar_img = np.array(sar_pil, dtype=np.float64)
                 sar_vv_db = _convert_sar_to_db(sar_img)
 
                 red = opt_img[:, :, 0]
                 green = opt_img[:, :, 1]
                 nir = opt_img[:, :, 2]
                 swir = None
+
+                optical_meta["optical_original_size"] = list(opt_orig_size)
+                optical_meta["sar_original_size"] = list(sar_orig_size)
+                optical_meta["reference_size"] = list(opt_pil.size)
+
             except Exception as exc:
                 return ToolResult(
                     task=TaskType.optical_sar_fusion,
@@ -186,6 +219,20 @@ class SARFusionTool(BaseTool):
             if red is not None:
                 red = _crop_array_to_aoi(red, aoi_bbox)
             sar_vv_db = _crop_array_to_aoi(sar_vv_db, aoi_bbox)
+
+        # --- Pre-fusion dimension alignment ---
+        ref_h, ref_w = green.shape[:2]
+
+        def _align_to_ref(arr: Optional[np.ndarray]) -> Optional[np.ndarray]:
+            if arr is None or arr.shape[:2] == (ref_h, ref_w):
+                return arr
+            img = Image.fromarray(arr.astype(np.float32), mode="F").resize((ref_w, ref_h), Image.BILINEAR)
+            return np.array(img, dtype=np.float64)
+
+        nir = _align_to_ref(nir)
+        swir = _align_to_ref(swir)
+        red = _align_to_ref(red)
+        sar_vv_db = _align_to_ref(sar_vv_db)
 
         try:
             fusion = fuse_optical_sar(green=green, nir=nir, swir=swir, vv_db=sar_vv_db, red=red)

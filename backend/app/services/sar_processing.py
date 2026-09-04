@@ -78,6 +78,9 @@ def sar_builtup_mask(
     return high_backscatter & high_texture
 
 
+from PIL import Image
+
+
 def fuse_optical_sar(
     green: np.ndarray,
     nir: np.ndarray,
@@ -88,6 +91,23 @@ def fuse_optical_sar(
     """
     Runs full Optical + SAR fusion pipeline using calibrated configurable thresholds.
     """
+    ref_h, ref_w = green.shape[:2]
+
+    def _align(arr: Optional[np.ndarray]) -> Optional[np.ndarray]:
+        if arr is None:
+            return None
+        if arr.shape[:2] == (ref_h, ref_w):
+            return arr
+        img = Image.fromarray(arr.astype(np.float32), mode="F").resize((ref_w, ref_h), Image.BILINEAR)
+        return np.array(img, dtype=np.float64)
+
+    nir = _align(nir)
+    if swir is not None:
+        swir = _align(swir)
+    if red is not None:
+        red = _align(red)
+    vv_db = _align(vv_db)
+
     vv_filtered = lee_filter(vv_db)
 
     water_optical = ndwi(green, nir) > NDWI_THRESHOLD
