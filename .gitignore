@@ -1,17 +1,28 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
 .venv/
 venv/
+env/
 backend/venv/
+
+# Node
+node_modules/
+dist/
+
+# Runtime data & outputs
 backend/data/uploads/*
+backend/data/outputs/*
+backend/data/temp/*
 backend/data/reports/*
 backend/data/adapters/*
 backend/data/audit.sqlite3
 !backend/data/.gitkeep
-
-node_modules/
-dist/
-.env
 
 # Model weights and Hugging Face cache
 *.bin
@@ -21,3 +32,11 @@ dist/
 .cache/
 hf_cache/
 
+# Logs
+*.log
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

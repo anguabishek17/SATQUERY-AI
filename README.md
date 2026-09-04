@@ -274,6 +274,16 @@ python benchmark_evaluation.py
 - **AOI Centroid Isolation**: $100\%$ spatial containment guarantee (zero out-of-boundary leakage).
 - **Audit Trace & PDF Verification**: Immutable SQLite audit log tracking and automated research-grade PDF report compilation.
 
+### 🗺️ Test Dataset
+
+Curated satellite scenes for testing and evaluating SatQuery AI are available in [`test_images/`](test_images/):
+- **Building Detection & Density**: Single-scene urban and industrial rasters for YOLO-based building segmentation and density estimation.
+- **Spatial Reasoning & Land-Use Interpretation**: Multi-class urban, river, vegetation, and farmland transition scenes for contextual landscape analysis.
+- **Optical + SAR Analysis**: Co-registered Optical ($800 \times 440$) and SAR ($1087 \times 860$) scene pairs for evidence fusion and dynamic spatial grid alignment testing.
+- **Evidence-Based Responses**: Benchmark targets for verifying physical metric generation ($\text{ha}, \text{km}^2$), spatial bounding box isolation, and confidence estimation.
+
+For full scene descriptions and usage, see [`test_images/README.md`](test_images/README.md).
+
 ---
 
 ## 🎯 Positioning & Evaluation (SIH26167)
