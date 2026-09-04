@@ -226,31 +226,39 @@ docker compose up --build
 
 ## 🧪 Automated Testing & Verification
 
-SatQuery AI includes automated regression suites to verify model integrity, zero-false-positive boundaries, and AOI containment:
+SatQuery AI includes automated regression and verification suites to guarantee model integrity, cross-modal alignment, zero-false-positive boundaries, and AOI containment:
 
 ```bash
-# Run from backend directory:
+# Run backend test suite:
+cd backend
 $env:PYTHONPATH="." ; python tests/test_river.py
+
+# Run benchmark evaluation suite:
+python benchmark_evaluation.py
 ```
 
-**Validated Benchmark Metrics:**
-- **Water Scene False Positive Test**: $0$ building detections on water bodies ($\text{density} = 0.0/\text{km}^2$).
+### 📊 Validated Benchmark & Verification Suite:
+- **Cross-Modal Spatial Alignment**: Automatic co-registration and bilinear resampling for mismatched Optical and SAR image dimensions (e.g. Optical $800 \times 440$ vs. SAR $1087 \times 860$) before signal processing operations.
+- **Water Scene Zero-False-Positive Test**: $0$ building detections over water bodies ($\text{density} = 0.0/\text{km}^2$).
 - **Hosur Benchmark Scene**: $10$ buildings detected across full scene ($34.25\,\text{ha}$ area, physical density $29.2\,\text{buildings/km}^2$).
 - **AOI Centroid Isolation**: $100\%$ spatial containment guarantee (zero out-of-boundary leakage).
+- **Audit Trace & PDF Verification**: Immutable SQLite audit log tracking and automated research-grade PDF report compilation.
 
 ---
 
 ## 🎯 Positioning & Evaluation (SIH26167)
 
-SatQuery AI was designed to meet the strict evaluation criteria of the **Smart India Hackathon (SIH)** remote-sensing vision-language assistant challenge:
+SatQuery AI is engineered to address the core challenges of the **Smart India Hackathon (SIH26167)** remote-sensing vision-language assistant problem statement:
 
-1. **Real Physical Evidence**: Never outputs ungrounded text summaries. Every response is paired with physical hectare calculations, bounding boxes, or raster statistics.
-2. **Honest Confidence Calibration**: Low confidence or uncalibrated neural signals are explicitly declared in the UI and trace rather than masquerading behind fake $99\%$ metrics.
-3. **Unified Single-Window Interface**: Eliminates model-selection burden for end users—modality routing and tool selection occur automatically under the hood.
+1. **Verifiable Physical Evidence**: Eliminates hallucinated textual summaries. Every response is paired with physical hectare calculations ($\text{m}^2$, $\text{ha}$, $\text{km}^2$), spatial change percentages, building counts, or cross-modal evidence matrices.
+2. **Autonomous Tool Routing & Orchestration**: Removes the burden of manual tool selection from analysts. Modality inspection (single, cross-modal, bi-temporal, compound) and tool routing (`Building Segmentor`, `Optical-SAR Fusion`, `Change Detector`, `Grounding Engine`) happen automatically under the hood.
+3. **Calibrated Confidence & Defensive Execution**: Low confidence or uncalibrated neural probability signals are explicitly flagged in the UI mission console and trace logs, backed by defensive error handling that guarantees backend stability.
+4. **ISRO/Research-Grade Auditability**: Every turn generates machine-readable outputs (GeoJSON vector layers, structured JSON traces) and downloadable PDF reports for formal documentation.
 
 ---
 
 ## 👥 Contributors & License
 
-- Developed by **Team SIH** for Smart India Hackathon.
+- **Team SatQuery** for Smart India Hackathon (SIH 2026) — Problem Statement **SIH26167**.
 - Open-sourced under the [MIT License](LICENSE).
+- Contributions, issues, and feature requests are welcome via Pull Requests.
