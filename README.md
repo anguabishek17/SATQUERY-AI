@@ -11,7 +11,7 @@
 
 **An autonomous, query-driven vision-language assistant for single-image, cross-modal (Optical + SAR), and bi-temporal remote-sensing satellite imagery.**
 
-[Key Features](#-key-capabilities) • [System Architecture](#-system-architecture) • [Quickstart](#-quickstart--installation) • [API Reference](#-api-endpoints) • [Positioning & Innovation](#-positioning--evaluation)
+[Executive Summary](#-executive-summary) • [Tech Stack](#-technology-stack) • [Key Capabilities](#-key-capabilities) • [System Architecture](#-system-architecture) • [Project Structure](#-project-structure) • [Quickstart](#-quickstart--installation)
 
 </div>
 
@@ -19,37 +19,54 @@
 
 ## 📌 Executive Summary
 
-**SatQuery AI** transforms satellite-image analysis from a manual, tool-heavy GIS process into a natural-language, query-driven workflow. Instead of requiring remote sensing analysts to switch between disparate GIS suites, scripts, and model checkpoints, SatQuery autonomously:
+**SatQuery AI** transforms satellite-image analysis from a manual, tool-heavy GIS process into a natural-language, query-driven autonomous workflow. Engineered specifically for remote-sensing analysts, urban planners, and emergency disaster responders, SatQuery AI eliminates manual GIS software switching by dynamically orchestrating specialized neural networks and physical signal processing pipelines.
 
-1. **Inspects imagery intelligence** (sensor modality, spatial resolution, coordinate reference systems, spectral bands).
-2. **Classifies query intent** and decomposes compound questions into dependency-tracked execution plans (*"SatQuery Chains"*).
-3. **Orchestrates specialized deep neural engines and physics-based signal processing pipelines** (Building segmentation, Optical-SAR fusion, Bi-temporal change detection, text-guided grounding, and VQA).
-4. **Delivers auditable physical evidence** (hectares, square kilometers, physical building density, GeoJSON vector overlays, and downloadable PDF research reports).
+### Core Autonomous Workflow:
+1. **Sensor & Intelligence Inspection**: Reads raster metadata, band counts, spatial resolution ($\text{m/pixel}$), geographic CRS, and automatically infers input configuration (`single`, `cross_modal`, `bi_temporal`, `compound`).
+2. **Intent Classification & Chain Decomposition**: Deconstructs compound user queries into ordered, dependency-tracked tool execution graphs (*"SatQuery Chains"*).
+3. **Cross-Modal Signal Processing & Deep Learning**: Combines physics-based remote sensing algorithms (Lee despeckle filtering, NDWI/NDBI/NDVI indexing, Otsu differencing) with neural segmentation (DeepLabV3+, SpaceNet YOLO) and text-guided spatial grounding.
+4. **Resilient Spatial Alignment**: Automatically co-registers and bilinearly resamples mismatched Optical and SAR imagery grids (e.g. Optical $800 \times 440$ vs. SAR $1087 \times 860$) before executing fusion computations.
+5. **Auditable Evidence & Research Reporting**: Emits physical metrics ($\text{m}^2$, $\text{ha}$, $\text{km}^2$, building counts, spatial change percentages), interactive GeoJSON vector overlays, SQLite audit logs, and downloadable ISRO/research-grade PDF reports.
+
+---
+
+## 🛠️ Technology Stack
+
+| Component / Layer | Technologies & Frameworks Used |
+| :--- | :--- |
+| **Backend Core Framework** | **Python 3.11+**, **FastAPI** (ASGI Gateway), **Pydantic v2** (Type Safety & Validation), **Uvicorn** (ASGI Server), **SQLite** (Audit Store) |
+| **Computer Vision & AI Engine** | **PyTorch 2.2+**, **Torchvision**, **OpenCV** (`cv2`), **GroundingDINO**, **DeepLabV3+**, **SpaceNet YOLO** |
+| **Geospatial & Signal Processing** | **Rasterio**, **GDAL**, **SciPy** (`scipy.ndimage`), **Pillow** (PIL), **NumPy** |
+| **Frontend Mission Console** | **React 18**, **Vite 5**, **TailwindCSS**, **Leaflet**, **MapLibre GL**, **React-Leaflet** |
+| **Report Generation Engine** | **FPDF2** (ISRO & Research-Grade PDF Analysis Reports) |
+| **Geocoding & Location Services** | **Nominatim** OpenStreetMap Geocoding API |
+| **Deployment & Tooling** | **Docker**, **Docker Compose**, **Virtualenv**, **Git** |
 
 ---
 
 ## 🚀 Key Capabilities
 
-### 1. 🏢 Neural Building Detection & Physical Density Quantification
-- **Dual Architecture**: Neural DeepLabV3+ semantic segmentor and SpaceNet YOLO remote-sensing instance detector.
-- **Tiled Sliding-Window Inference**: Seamlessly processes large-format satellite images ($512 \times 512$ sliding tiles with configurable overlap and cross-tile Non-Maximum Suppression).
-- **Physical Metrics**: Automatically converts pixel masks into real physical units ($\text{m}^2$, $\text{ha}$, $\text{km}^2$) and computes physical building densities ($\text{buildings/km}^2$).
-- **Vector Overlays**: Emits interactive GeoJSON polygon footprints for GIS workspace rendering and QGIS export.
+### 1. 🏢 Neural Building Segmentation & Physical Density Quantification
+- **Dual Architecture**: Neural DeepLabV3+ semantic segmentor paired with SpaceNet YOLO remote-sensing instance detector.
+- **Tiled Sliding-Window Inference**: Processes large-format satellite rasters ($512 \times 512$ sliding tiles with configurable tile overlap and cross-tile Non-Maximum Suppression).
+- **Physical Metrics Conversion**: Converts pixel segmentation masks into real physical units ($\text{m}^2$, $\text{ha}$, $\text{km}^2$) and computes physical building densities ($\text{buildings/km}^2$).
+- **GeoJSON Vector Overlays**: Emits interactive GeoJSON polygon footprints enriched with building IDs, confidence scores, and geographic centroids for GIS workspace rendering and QGIS export.
 
 ### 2. 🛰️ Cross-Modal Optical + SAR Evidence Fusion
-- **SAR Despeckling**: Lee-filter despeckling to suppress multiplicative speckle noise while preserving structural edges.
+- **Spatial Grid Alignment**: Bilinear resampling engine ensuring co-registration between mismatched Optical and SAR image dimensions prior to NumPy array operations.
+- **SAR Despeckling**: Adaptive Lee filter suppressing multiplicative speckle noise while preserving fine urban structural edges.
 - **Backscatter Thresholding**: Calibrated thresholding for permanent water bodies ($\le -17.0\,\text{dB}$) and double-bounce high-density urban structures.
-- **Spectral Indexing**: Integrates NDWI (Normalized Difference Water Index) and NDBI (Normalized Difference Built-up Index).
-- **Cross-Sensor Agreement**: Quantifies multi-sensor consensus and flags cloud-covered optical ambiguities using all-weather SAR penetration.
+- **Spectral Index Integration**: Multi-modal fusion combining NDWI (Water Index), NDBI (Built-up Index), and NDVI (Vegetation Index) with SAR backscatter signatures.
+- **Sensor Consensus Scoring**: Calculates cross-sensor agreement scores to resolve optical cloud occlusions using SAR all-weather microwave penetration.
 
 ### 3. ⏱️ Bi-Temporal Change Detection & Damage Assessment
 - **Co-registered Image Differencing**: Pixel-wise radiance and backscatter diffing across dual timestamps ($T_0$ vs. $T_1$).
 - **Data-Driven Thresholding**: Adaptive Otsu thresholding with morphological cleanup (dilation/erosion) to filter single-pixel false positives.
-- **Spatial Quantification**: Outputs percentage of scene changed, total hectares altered, count of contiguous change clusters, and primary compass zone of change.
+- **Spatial Quantification**: Outputs percentage of scene changed, total hectares altered ($\text{ha}$), count of contiguous change clusters, and compass-based spatial distribution.
 
 ### 4. 🧠 Autonomous Agent Controller & "SatQuery Chain"
-- **Compound Query Decomposition**: Deconstructs multi-stage analytical queries (e.g., *"Find new construction within 500m of the lake and show SAR evidence"*) into ordered, dependency-tracked tool execution graphs (`Ground` $\rightarrow$ `Buffer AOI` $\rightarrow$ `Change Detect` $\rightarrow$ `SAR Intersect` $\rightarrow$ `Synthesize`).
-- **Multi-Turn Spatial Context Memory**: Resolves pronouns and spatial referents (*"highlight that cluster"*, *"how large is it?"*, *"what changed there?"*) across conversational turns.
+- **Compound Query Decomposition**: Deconstructs multi-stage analytical queries (e.g. *"Find new construction within 500m of the lake and show SAR evidence"*) into ordered, dependency-tracked tool execution graphs (`Ground` $\rightarrow$ `Buffer AOI` $\rightarrow$ `Change Detect` $\rightarrow$ `SAR Intersect` $\rightarrow$ `Summarize`).
+- **Multi-Turn Spatial Context Memory**: Resolves pronouns and spatial referents (*"highlight that cluster"*, *"how large is it?"*, *"what changed there?"*) across multi-turn sessions.
 - **Universal AOI Scoping**: Supports user-drawn interactive bounding box crops with strict centroid containment filtering.
 
 ### 5. 📑 Auditable Trace & Research Report Generation
@@ -79,6 +96,7 @@ graph TD
         H --> T3[Optical-SAR Fusion<br/>Lee Filter, NDWI / NDBI]
         H --> T4[Grounding Engine<br/>GroundingDINO]
         H --> T5[VQA & Captioning<br/>GeoChat & Specialist Fallback]
+        H --> T6[Dynamic Analysis Tool<br/>Compositional Evidence Synthesis]
     end
     
     T1 --> I[Output Combiner & Physical Metrics]
@@ -86,6 +104,7 @@ graph TD
     T3 --> I
     T4 --> I
     T5 --> I
+    T6 --> I
     
     I --> J[GeoJSON Footprint Generator]
     I --> K[Audit Log DB & PDF Report Engine]
@@ -101,34 +120,44 @@ SATQUERY-AI/
 ├── backend/
 │   ├── app/
 │   │   ├── config.py                 # Central configurations, model paths & thresholds
-│   │   ├── main.py                   # FastAPI backend server
+│   │   ├── main.py                   # FastAPI backend server & CORS middleware
 │   │   ├── schemas.py                # Pydantic models for queries, responses & traces
 │   │   ├── controller/
 │   │   │   ├── agent_controller.py   # Primary agentic remote-sensing controller
 │   │   │   ├── chain_executor.py     # Multi-step SatQuery Chain execution engine
-│   │   │   ├── classifier.py         # Query intent classifier
+│   │   │   ├── classifier.py         # Query intent classifier & task router
 │   │   │   ├── context_memory.py     # Multi-turn spatial memory store
+│   │   │   ├── dynamic_planner.py    # Dynamic evidence requirement planner
 │   │   │   ├── query_decomposer.py   # Compound query dependency planner
 │   │   │   └── validator.py          # Modality and input format validator
 │   │   ├── routers/
-│   │   │   ├── geocoding.py          # Nominatim reverse/forward geocoding
+│   │   │   ├── geocoding.py          # Nominatim reverse/forward geocoding API
 │   │   │   ├── query.py              # Query execution & PDF download endpoints
-│   │   │   └── upload.py             # File upload and preview streaming
+│   │   │   └── upload.py             # File upload and preview streaming API
 │   │   ├── services/
 │   │   │   ├── audit_log.py          # SQLite audit trail manager
 │   │   │   ├── change_processing.py  # Co-registered diffing & Otsu thresholding
+│   │   │   ├── change_stats.py       # Change detection metrics & area calculations
+│   │   │   ├── evaluation_metrics.py # Model evaluation & benchmark statistics
 │   │   │   ├── geospatial_utils.py   # Coordinate conversions, GeoJSON & physical area
+│   │   │   ├── image_io.py           # GeoTIFF/PNG reading & preview streaming
+│   │   │   ├── optical_processing    # Optical land cover spectral processing
 │   │   │   ├── report.py             # FPDF2 report generator
+│   │   │   ├── report_generator.py   # Research-grade report metadata builder
 │   │   │   ├── sar_processing.py     # Lee despeckling & SAR index computation
-│   │   │   └── sensor_intelligence.py# Rasterio sensor inspection
+│   │   │   ├── sensor_intelligence.py# Rasterio sensor inspection & workflow inference
+│   │   │   └── threshold_calibration.py # Grid-search spectral threshold optimizer
 │   │   └── tools/
 │   │       ├── aoi_tools.py          # AOI crop & centroid containment
+│   │       ├── base.py               # Base tool contract interface
 │   │       ├── change_detection.py   # Bi-temporal change detection tool
-│   │       ├── grounding.py          # Text-guided spatial grounding
+│   │       ├── dynamic_analysis_tool.py # Compositional dynamic analysis specialist
+│   │       ├── grounding.py          # Text-guided spatial grounding tool
 │   │       ├── object_counting.py    # DeepLabV3+ & SpaceNet building segmentor
 │   │       ├── sar_fusion.py         # Optical-SAR fusion specialist
 │   │       └── vqa_caption.py        # VQA with graceful specialist fallback
 │   ├── data/                         # Uploads, models, reports & audit store
+│   ├── scratch/                      # Persisted scratch & test scripts
 │   ├── requirements.txt              # Python dependencies
 │   └── tests/                        # Automated regression & integration test suite
 │
@@ -136,9 +165,10 @@ SATQUERY-AI/
 │   ├── src/
 │   │   ├── api/                      # Axios backend API client
 │   │   ├── components/
-│   │   │   ├── BiTemporalWorkspace.jsx
-│   │   │   ├── ConfidenceBadge.jsx
-│   │   │   ├── OpticalSarWorkspace.jsx
+│   │   │   ├── BiTemporalWorkspace.jsx # Dual-date change detection viewport
+│   │   │   ├── ConfidenceBadge.jsx   # Honest confidence indicator
+│   │   │   ├── OpticalSarWorkspace.jsx # Dual synchronized Optical | SAR viewport
+│   │   │   ├── QueryBox.jsx          # Query input & chain step visualizer
 │   │   │   ├── SatelliteMapWorkspace.jsx # Interactive Leaflet/SVG AOI workspace
 │   │   │   └── UploadPanel.jsx       # Multi-modal slot upload manager
 │   │   ├── pages/
