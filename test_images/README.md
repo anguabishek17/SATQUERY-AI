@@ -20,8 +20,11 @@ test_images/
 │   ├── industrial_scene_04.jpg    (800x388 RGB Optical - Logistics Hub & Water Retention)
 │   └── industrial_scene_05.jpg    (800x792 RGB Optical - Solar Industrial Complex & Transport)
 └── 03_urban_farmland_transition/
-    ├── optical_ref.jpg            (800x440 RGB Optical)
-    └── sar_ref.jpg                (1087x860 Grayscale SAR)
+    ├── transition_scene_01.jpg    (1024x682 RGB Optical - Split Urban/Farmland Boundary)
+    ├── transition_scene_02.jpg    (768x1024 RGB Optical - Circular Crop Fields & Urban Expansion)
+    ├── transition_scene_03.jpg    (1024x768 RGB Optical - Mixed Urban Grid & Agricultural Parcels)
+    ├── transition_scene_04.jpg    (800x388 RGB Optical - High-Density Urban Margin & Farmland)
+    └── transition_scene_05.jpg    (800x792 RGB Optical - Central Urban Core & Peripheral Fields)
 ```
 
 ---
@@ -52,14 +55,13 @@ test_images/
 
 ## 03 — Urban + Farmland Transition
 
-**Files:** `optical_ref.jpg` ($800 \times 440$ RGB) & `sar_ref.jpg` ($1087 \times 860$ Grayscale SAR)
+**Files:** `transition_scene_01.jpg`, `transition_scene_02.jpg`, `transition_scene_03.jpg`, `transition_scene_04.jpg`, `transition_scene_05.jpg`
 
 **Purpose:**
-- Land-use pattern reasoning
-- Urban/rural transition boundaries
-- Spatial comparison across regions
-- Vegetation and built-up context
-- Cross-modal Optical + SAR evidence fusion and dynamic spatial grid alignment testing
+- Land-use pattern reasoning & fringe classification
+- Urban vs. agricultural land boundary delineation
+- Mixed development transition zone interpretation
+- Spatial comparison across agricultural and built-up areas
 
 ---
 
