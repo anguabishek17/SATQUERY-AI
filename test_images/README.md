@@ -14,7 +14,11 @@ test_images/
 │   ├── scene_05.jpg               (1024x767 RGB Optical - River Valley & Agricultural Fields)
 │   └── scene_optical.png          (512x512 RGB Optical - Benchmark River Scene)
 ├── 02_dense_industrial_area/
-│   └── scene_optical.png          (512x512 RGB Optical)
+│   ├── industrial_scene_01.jpg    (1024x682 RGB Optical - Highway Interchange & Warehouses)
+│   ├── industrial_scene_02.jpg    (768x1024 RGB Optical - High-Density Factory Grid)
+│   ├── industrial_scene_03.jpg    (1024x768 RGB Optical - Industrial Roof Structures)
+│   ├── industrial_scene_04.jpg    (800x388 RGB Optical - Logistics Hub & Water Retention)
+│   └── industrial_scene_05.jpg    (800x792 RGB Optical - Solar Industrial Complex & Transport)
 └── 03_urban_farmland_transition/
     ├── optical_ref.jpg            (800x440 RGB Optical)
     └── sar_ref.jpg                (1087x860 Grayscale SAR)
@@ -36,13 +40,13 @@ test_images/
 
 ## 02 — Dense Industrial Area
 
-**Files:** `scene_optical.png` ($512 \times 512$ RGB)
+**Files:** `industrial_scene_01.jpg`, `industrial_scene_02.jpg`, `industrial_scene_03.jpg`, `industrial_scene_04.jpg`, `industrial_scene_05.jpg`
 
 **Purpose:**
-- Building detection & boundary segmentation
-- Building density estimation ($\text{buildings/km}^2$)
-- Development concentration analysis
-- Built-environment reasoning
+- Neural building detection & boundary segmentation
+- Industrial building density estimation ($\text{buildings/km}^2$)
+- High-density development concentration analysis
+- Logistics infrastructure & industrial land-use reasoning
 
 ---
 
