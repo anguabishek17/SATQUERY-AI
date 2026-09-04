@@ -259,6 +259,6 @@ SatQuery AI is engineered to address the core challenges of the **Smart India Ha
 
 ## 👥 Contributors & License
 
-- **Team SatQuery** for Smart India Hackathon (SIH 2026) — Problem Statement **SIH26167**.
+- **Team SatNexus** for Smart India Hackathon (SIH 2026) — Problem Statement **SIH26167**.
 - Open-sourced under the [MIT License](LICENSE).
 - Contributions, issues, and feature requests are welcome via Pull Requests.
