@@ -24,6 +24,11 @@ backend/data/adapters/*
 backend/data/audit.sqlite3
 !backend/data/.gitkeep
 
+# Temporary Test Output
+backend/*_output.json
+backend/*_results.json
+backend/fusion_output*.txt
+
 # Model weights and Hugging Face cache
 *.bin
 *.safetensors

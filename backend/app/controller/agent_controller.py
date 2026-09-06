@@ -18,6 +18,7 @@ from app.controller.query_decomposer import decompose, is_compound
 from app.schemas import ChainStepModel, ChangeStatsModel, ExecutionStep, ImageRef, InputConfig, QueryResponse, TaskType
 from app.services.audit_log import log_execution
 from app.services.change_stats import compute_stats_from_result, compute_stats_stub
+from app.services.gemini_service import generate_visual_explanation
 from app.services.image_io import saved_path
 from app.services.report_generator import generate_research_report
 from app.services.sensor_intelligence import inspect_image_sensor, classify_multi_image_workflow
@@ -285,10 +286,38 @@ def handle_query(
         answer=result.output_text or "",
     )
 
+    # 11. AI Visual Intelligence Layer (Gemini)
+    # Only invoke for visual interpretation if images are available
+    final_answer = result.output_text or ""
+    
+    # Collect computational evidence to ground Gemini
+    comp_evidence = {
+        "physical_metrics": result.physical_metrics,
+        "fusion_agreement_score": result.fusion_agreement_score,
+        "detector_status": detector_status,
+        "object_count": len(result.bounding_boxes or []),
+        "change_stats": change_stats.model_dump() if change_stats else None,
+    }
+    
+    image_paths = [str(saved_path(img.file_id)) for img in images if img.file_id]
+    
+    # Do not call Gemini for simple building counting unless strictly requested, to save quota.
+    # We call it for most qualitative/analytical tasks.
+    if legacy_task not in (TaskType.object_counting, TaskType.BUILDING_COUNT) or "describe" in query.lower() or "visual" in query.lower():
+        visual_explanation = generate_visual_explanation(query, image_paths, comp_evidence)
+        
+        if visual_explanation:
+            final_answer = (
+                f"**AI ANALYSIS**\n"
+                f"{result.output_text}\n\n"
+                f"**VISUAL INTERPRETATION**\n"
+                f"{visual_explanation}"
+            )
+            
     return QueryResponse(
         task=legacy_task,
         input_config=input_config,
-        answer=result.output_text or "",
+        answer=final_answer,
         confidence=result.confidence,
         confidence_calibrated=result.confidence_calibrated,
         fusion_agreement_score=result.fusion_agreement_score,
