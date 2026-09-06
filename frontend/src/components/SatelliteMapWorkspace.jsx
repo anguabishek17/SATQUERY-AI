@@ -129,8 +129,10 @@ export default function SatelliteMapWorkspace({
   activeLayers = { trueColor: true, ndvi: false, detection: true },
   searchedCoords,
   onCapturedImage,
+  evidenceImageUrl,
 }) {
   const [opacity, setOpacity] = useState(0.85)
+  const [showOverlay, setShowOverlay] = useState(true)
   const [selectedBuilding, setSelectedBuilding] = useState(null)
   const [imgW, setImgW] = useState(512)
   const [imgH, setImgH] = useState(512)
@@ -243,6 +245,23 @@ export default function SatelliteMapWorkspace({
 
         {/* Dual AOI Controls */}
         <div className="flex items-center gap-2">
+          {evidenceImageUrl && (
+            <div className="flex bg-[#0B0F19] rounded-lg border border-indigo-500/30 overflow-hidden mr-2">
+              <button
+                onClick={() => setShowOverlay(false)}
+                className={`px-2.5 py-1 text-[10px] font-medium transition-colors ${!showOverlay ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-[#1E293B]'}`}
+              >
+                Original
+              </button>
+              <button
+                onClick={() => setShowOverlay(true)}
+                className={`px-2.5 py-1 text-[10px] font-medium transition-colors ${showOverlay ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-[#1E293B]'}`}
+              >
+                Land-Cover Overlay
+              </button>
+            </div>
+          )}
+
           {!previewUrl && !isUploadedImage && (
             <button
               onClick={handleCaptureView}
@@ -339,6 +358,14 @@ export default function SatelliteMapWorkspace({
                 activeLayers.trueColor ? 'opacity-100' : 'opacity-30'
               }`}
             />
+
+            {evidenceImageUrl && showOverlay && (
+              <img
+                src={evidenceImageUrl}
+                alt="Land-Cover Overlay"
+                className="absolute inset-0 h-full w-full object-cover pointer-events-none z-10 transition-opacity duration-300"
+              />
+            )}
 
             {/* Interactive SVG Overlay for Live AOI Dragging & Finalized Box */}
             <svg className="absolute inset-0 w-full h-full pointer-events-none z-30">
@@ -468,6 +495,20 @@ export default function SatelliteMapWorkspace({
               <div className="pt-2 text-[10px] text-slate-500 border-t border-slate-800">
                 Centroid: {selectedBuilding.bbox.map((v) => Math.round(v)).join(', ')}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Land-Cover Legend */}
+        {evidenceImageUrl && showOverlay && (
+          <div className="absolute bottom-3 right-3 z-40 rounded-xl border border-slate-700 bg-[#131927]/95 p-3 text-[11px] shadow-2xl backdrop-blur-md font-mono text-slate-200">
+            <div className="font-bold text-slate-300 mb-2 pb-1 border-b border-slate-700/80">LAND-COVER ESTIMATE</div>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'rgb(34, 139, 34)'}}></span>Vegetation</div>
+              <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'rgb(0, 119, 190)'}}></span>Water</div>
+              <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'rgb(169, 169, 169)'}}></span>Built-up</div>
+              <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'rgb(210, 180, 140)'}}></span>Bare Land</div>
+              <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'rgb(80, 80, 80)'}}></span>Road</div>
             </div>
           </div>
         )}

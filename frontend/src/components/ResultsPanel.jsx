@@ -37,6 +37,32 @@ export default function ResultsPanel({ result }) {
           </div>
         )}
 
+        {result.physical_metrics?.rgb_fallback && (
+          <div className="mt-4 rounded border border-border bg-surface px-4 py-3">
+            <div className="mb-2 text-xs font-semibold tracking-wide text-ink-dim uppercase border-b border-border pb-1">
+              Method: RGB-based visual estimate
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-ink-dim">Vegetation</span>
+                <span className="font-mono text-teal">{result.physical_metrics.vegetation_pct !== undefined && result.physical_metrics.vegetation_pct !== null ? `${result.physical_metrics.vegetation_pct.toFixed(1)}%` : 'N/A'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-ink-dim">Water</span>
+                <span className="font-mono text-teal">{result.physical_metrics.water_pct !== undefined && result.physical_metrics.water_pct !== null ? `${result.physical_metrics.water_pct.toFixed(1)}%` : 'N/A'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-ink-dim">Built-up</span>
+                <span className="font-mono text-teal">{result.physical_metrics.builtup_pct !== undefined && result.physical_metrics.builtup_pct !== null ? `${result.physical_metrics.builtup_pct.toFixed(1)}%` : 'N/A'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-ink-dim">Bare Land</span>
+                <span className="font-mono text-teal">{result.physical_metrics.bare_pct !== undefined && result.physical_metrics.bare_pct !== null ? `${result.physical_metrics.bare_pct.toFixed(1)}%` : 'N/A'}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         <a
           href={reportPdfUrl(result.report_id)}
           className="mt-3 inline-block rounded border border-border px-3 py-1.5 text-xs text-ink-dim hover:border-teal/40 hover:text-teal"

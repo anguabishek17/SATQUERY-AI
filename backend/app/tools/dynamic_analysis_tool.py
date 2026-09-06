@@ -116,14 +116,14 @@ def _spectral_note(veg_pct, water_pct, builtup_pct, include_when_none=True) -> s
 
 
 def _synthesize_answer(
-    intent: str,
+    task_type: TaskType,
     query: str,
     metrics: Dict[str, Any],
     plan: Dict[str, Any],
     spatial: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, float, bool, list]:
     """
-    Convert intent + evidence metrics into a natural-language answer.
+    Convert task_type + evidence metrics into a natural-language answer.
 
     Returns: (answer_text, confidence, confidence_calibrated, limitations)
     """
@@ -135,12 +135,58 @@ def _synthesize_answer(
     water_pct = metrics.get("water_pct")
     builtup_pct = metrics.get("builtup_pct")
     
-    has_spectral = (veg_pct is not None or water_pct is not None or builtup_pct is not None)
+    rgb_fallback = metrics.get("rgb_fallback", False)
+    has_spectral = (veg_pct is not None or water_pct is not None or builtup_pct is not None) and not rgb_fallback
     has_buildings = (b_count is not None and b_count > 0)
     
-    # Recompute density from actual counts + area to prevent stale values
     b_density = round(b_count / area_km2, 1) if (b_count is not None and area_km2 > 0) else 0.0
     limitations = []
+
+    # -----------------------------------------------------------------------
+    # Task-Aware Logic (New Granular Intents)
+    # -----------------------------------------------------------------------
+    if task_type == TaskType.WATER_DETECTION:
+        if has_spectral and water_pct is not None:
+            return f"Water covers {water_pct:.1f}% of the analyzed area based on NDWI.", 0.90, True, []
+        if rgb_fallback and water_pct is not None:
+            return f"Water covers approximately {water_pct:.1f}% of the analyzed area based on an RGB-based visual estimate.", 0.70, False, ["Precise water detection requires NIR/SWIR data."]
+        return "Water is visually present, but quantitative NDWI is unavailable as this image lacks NIR/SWIR bands.", 0.70, False, ["NIR/SWIR data is required for precise water detection."]
+
+    if task_type == TaskType.VEGETATION_ANALYSIS:
+        if has_spectral and veg_pct is not None:
+            return f"Vegetation covers {veg_pct:.1f}% of the analyzed area based on NDVI.", 0.90, True, []
+        if rgb_fallback and veg_pct is not None:
+            return f"Vegetation covers approximately {veg_pct:.1f}% of the analyzed area based on an RGB-based visual estimate.", 0.70, False, ["Precise vegetation analysis requires NIR/SWIR data."]
+        return "Vegetation is visually present, but quantitative NDVI is unavailable as this image lacks NIR/SWIR bands.", 0.70, False, ["NIR/SWIR data is required for precise vegetation analysis."]
+
+    if task_type == TaskType.BUILT_UP_ANALYSIS:
+        if has_spectral and builtup_pct is not None:
+            return f"Built-up surfaces cover {builtup_pct:.1f}% of the analyzed area based on NDBI.", 0.90, True, []
+        if rgb_fallback and builtup_pct is not None:
+            return f"Built-up areas cover approximately {builtup_pct:.1f}% of the analyzed area based on an RGB-based visual estimate.", 0.70, False, ["Precise built-up analysis requires NIR/SWIR data."]
+        return "Built-up areas may be visually present, but quantitative NDBI is unavailable as this image lacks NIR/SWIR bands.", 0.70, False, ["NIR/SWIR data is required for precise built-up analysis."]
+
+    if task_type == TaskType.LAND_COVER:
+        if has_spectral:
+            parts = []
+            if veg_pct is not None: parts.append(f"vegetation ({veg_pct:.1f}%)")
+            if water_pct is not None: parts.append(f"water ({water_pct:.1f}%)")
+            if builtup_pct is not None: parts.append(f"built-up surfaces ({builtup_pct:.1f}%)")
+            ans = "The analyzed area contains: " + ", ".join(parts) + "."
+            return ans, 0.90, True, []
+        if rgb_fallback:
+            parts = []
+            if veg_pct is not None: parts.append(f"vegetation ({veg_pct:.1f}%)")
+            if water_pct is not None: parts.append(f"water ({water_pct:.1f}%)")
+            if builtup_pct is not None: parts.append(f"built-up surfaces ({builtup_pct:.1f}%)")
+            bare_pct = metrics.get("bare_pct")
+            if bare_pct is not None: parts.append(f"bare land ({bare_pct:.1f}%)")
+            ans = "Based on an RGB land-cover estimate, the analyzed area contains: " + ", ".join(parts) + "."
+            return ans, 0.75, False, ["NIR/SWIR data is required for quantitative spectral land-cover classification."]
+        return "Land cover classes cannot be quantitatively measured as this image lacks the NIR/SWIR bands required for spectral indices.", 0.70, False, ["NIR/SWIR data is required for quantitative land cover classification."]
+
+    # Fallback to internal intent logic for GENERAL_SCENE_ANALYSIS
+    intent = _classify_intent(query, plan)
 
     # -----------------------------------------------------------------------
     # Capability question
@@ -183,6 +229,14 @@ def _synthesize_answer(
             if water_pct is not None: spec_parts.append(f"water {water_pct:.1f}%")
             if builtup_pct is not None: spec_parts.append(f"built-up {builtup_pct:.1f}%")
             obs.append(f"{idx}. Spectral indices: " + ", ".join(spec_parts) + ".")
+        elif rgb_fallback:
+            idx = len(obs) + 1
+            rgb_parts = []
+            if veg_pct is not None: rgb_parts.append(f"vegetation {veg_pct:.1f}%")
+            if water_pct is not None: rgb_parts.append(f"water {water_pct:.1f}%")
+            if builtup_pct is not None: rgb_parts.append(f"built-up {builtup_pct:.1f}%")
+            obs.append(f"{idx}. RGB visual estimate: " + ", ".join(rgb_parts) + ".")
+            limitations.append("Precise multi-spectral indices are unavailable for this RGB image.")
         else:
             idx = len(obs) + 1
             obs.append(f"{idx}. Spectral land-cover indices are unavailable for this RGB image.")
@@ -242,6 +296,14 @@ def _synthesize_answer(
                 core_answer += f" Additionally, {b_count} building structures were detected."
             conf = 0.85
             calibrated = True
+        elif rgb_fallback and veg_pct is not None and builtup_pct is not None:
+            dom = "Vegetation is" if veg_pct > builtup_pct else "Built-up surfaces are"
+            core_answer = f"Based on an RGB visual estimate, {dom.lower()} more dominant in this scene (vegetation {veg_pct:.1f}% vs built-up {builtup_pct:.1f}%)."
+            if has_buildings:
+                core_answer += f" Additionally, {b_count} building structures were detected."
+            conf = 0.75
+            calibrated = False
+            limitations.append("A quantitative vegetation-vs-built-up comparison using NDVI/NDBI cannot be confirmed because NIR/SWIR bands are unavailable.")
         else:
             if has_buildings:
                 desc = "sparse structures" if b_density < 10 else "moderate to dense structures"
@@ -330,8 +392,31 @@ class DynamicAnalysisTool(BaseTool):
                         if "built_up" in plan["evidence_required"]:
                             evidence["built_up_evidence"] = {"builtup_pct": stats.get("builtup_pct", 0)}
                             physical_metrics["builtup_pct"] = stats.get("builtup_pct", 0)
+                    else:
+                        from app.services.rgb_landcover import rgb_landcover_estimation
+                        rgb_stats = rgb_landcover_estimation(image_path, aoi_bbox)
+                        if "water" in plan["evidence_required"]:
+                            evidence["water_evidence"] = {"water_pct": rgb_stats["water_pct"], "rgb_fallback": True}
+                            physical_metrics["water_pct"] = rgb_stats["water_pct"]
+                        if "vegetation" in plan["evidence_required"]:
+                            evidence["vegetation_evidence"] = {"vegetation_pct": rgb_stats["vegetation_pct"], "rgb_fallback": True}
+                            physical_metrics["vegetation_pct"] = rgb_stats["vegetation_pct"]
+                        if "built_up" in plan["evidence_required"]:
+                            evidence["built_up_evidence"] = {"builtup_pct": rgb_stats["builtup_pct"], "rgb_fallback": True}
+                            physical_metrics["builtup_pct"] = rgb_stats["builtup_pct"]
+                        evidence["land_cover_evidence"] = rgb_stats
+                        physical_metrics.update({
+                            "water_pct": rgb_stats["water_pct"],
+                            "vegetation_pct": rgb_stats["vegetation_pct"],
+                            "builtup_pct": rgb_stats["builtup_pct"],
+                            "bare_pct": rgb_stats["bare_pct"],
+                            "rgb_fallback": True,
+                            "overlay_url": rgb_stats["overlay_url"]
+                        })
 
             except Exception as e:
+                import traceback
+                traceback.print_exc()
                 evidence["optical_error"] = str(e)
 
         # 2. Building detector (only if required)
@@ -398,6 +483,12 @@ class DynamicAnalysisTool(BaseTool):
             )
 
         q_lower = query.lower()
+        
+        from app.controller.classifier import classify
+        from app.services.sensor_intelligence import classify_multi_image_workflow
+        input_config = classify_multi_image_workflow(images)
+        task_type = classify(query, input_config)
+        
         intent  = _classify_intent(query, plan)
         evidence: Dict[str, Any] = {}
         physical_metrics: Dict[str, Any] = {}
@@ -455,11 +546,14 @@ class DynamicAnalysisTool(BaseTool):
                 primary_m = r1_m if r1_b >= r2_b else r2_m
                 # Merge region metrics for confidence calculation
                 merged = {}
-                for k in ["building_count", "density_per_km2", "area_ha", "vegetation_pct", "water_pct", "builtup_pct"]:
+                for k in ["building_count", "density_per_km2", "area_ha", "vegetation_pct", "water_pct", "builtup_pct", "rgb_fallback", "bare_pct", "overlay_url"]:
                     v1 = r1_m.get(k)
                     v2 = r2_m.get(k)
                     if v1 is not None and v2 is not None:
-                        merged[k] = v1 + v2 if k == "building_count" else (v1 + v2) / 2
+                        if k in ["building_count", "density_per_km2", "area_ha", "vegetation_pct", "water_pct", "builtup_pct", "bare_pct"]:
+                            merged[k] = v1 + v2 if k == "building_count" else (v1 + v2) / 2
+                        else:
+                            merged[k] = v1 or v2
                     elif v1 is not None:
                         merged[k] = v1
                     elif v2 is not None:
@@ -485,7 +579,7 @@ class DynamicAnalysisTool(BaseTool):
         # Run synthesis
         # ------------------------------------------------------------------
         final_answer, confidence, confidence_calibrated, limitations = _synthesize_answer(
-            intent=intent,
+            task_type=task_type,
             query=query,
             metrics=synthesis_metrics,
             plan=plan,
@@ -502,6 +596,7 @@ class DynamicAnalysisTool(BaseTool):
             output_text=final_answer,
             confidence=confidence,
             confidence_calibrated=confidence_calibrated,
+            evidence_image_url=physical_metrics.get("overlay_url"),
             physical_metrics=physical_metrics,
             raw={"plan": plan, "evidence": evidence, "intent": intent},
         )

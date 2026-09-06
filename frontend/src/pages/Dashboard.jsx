@@ -372,14 +372,15 @@ export default function Dashboard() {
               <SatelliteMapWorkspace
                 previewUrl={primaryImageUrl}
                 isUploadedImage={isCustomUploaded}
-                uploadedFilename={uploadedImages?.[0]?.filename}
+                uploadedFilename={activeImages?.[0]?.filename}
                 geojsonOverlay={result?.geojson_overlay}
-                boxes={result?.bounding_boxes}
+                boxes={result?.object_counts}
                 aoiBbox={aoiBbox}
                 onAoiChange={setAoiBbox}
                 physicalMetrics={result?.physical_metrics}
                 sensorInfo={result?.sensor_info}
-                rawResult={result}
+                rawResult={result?.raw}
+                evidenceImageUrl={result?.evidence_image_url}
                 activeLayers={activeLayers}
                 searchedCoords={searchedCoords}
                 onCapturedImage={(capturedImgs) => {

@@ -37,7 +37,31 @@ _REGISTRY = {
     TaskType.change_description: ChangeDetectionTool(),
     TaskType.optical_sar_fusion: SARFusionTool(),
     TaskType.dynamic_analysis: DynamicAnalysisTool(),
+    TaskType.BUILDING_COUNT: ObjectCountingTool(),
+    TaskType.BUILDING_DISTRIBUTION: ObjectCountingTool(),
+    TaskType.WATER_DETECTION: DynamicAnalysisTool(),
+    TaskType.VEGETATION_ANALYSIS: DynamicAnalysisTool(),
+    TaskType.BUILT_UP_ANALYSIS: DynamicAnalysisTool(),
+    TaskType.LAND_COVER: DynamicAnalysisTool(),
+    TaskType.SAR_ANALYSIS: SARFusionTool(),
+    TaskType.OPTICAL_SAR_FUSION: SARFusionTool(),
+    TaskType.CHANGE_DETECTION: ChangeDetectionTool(),
+    TaskType.GENERAL_SCENE_ANALYSIS: DynamicAnalysisTool(),
 }
+
+_COMPAT_MAPPING = {
+    TaskType.BUILDING_COUNT: TaskType.object_counting,
+    TaskType.BUILDING_DISTRIBUTION: TaskType.object_counting,
+    TaskType.WATER_DETECTION: TaskType.dynamic_analysis,
+    TaskType.VEGETATION_ANALYSIS: TaskType.dynamic_analysis,
+    TaskType.BUILT_UP_ANALYSIS: TaskType.dynamic_analysis,
+    TaskType.LAND_COVER: TaskType.dynamic_analysis,
+    TaskType.SAR_ANALYSIS: TaskType.optical_sar_fusion,
+    TaskType.OPTICAL_SAR_FUSION: TaskType.optical_sar_fusion,
+    TaskType.CHANGE_DETECTION: TaskType.change_vqa,
+    TaskType.GENERAL_SCENE_ANALYSIS: TaskType.dynamic_analysis,
+}
+
 
 
 def _handle_compound_query(query: str, images: list[ImageRef], chain_steps, chain,
@@ -208,10 +232,11 @@ def handle_query(
             detail=f"defensive error catch: tool={tool.name} raised exception: {exc}",
         ))
         # Produce valid fallback QueryResponse instead of crashing backend
+        legacy_task = _COMPAT_MAPPING.get(task, task)
         research_report = generate_research_report(query=query, tool_result=None, sensor_info=sensor_info, aoi_bbox=aoi_bbox, session_id=session_id)
-        report_id = log_execution(query=query, input_config=input_config.value, task=task.value, tools_used=[tool.name], confidence=0.0, execution_trace=[s.model_dump() for s in trace], answer=f"[Tool Error]: {exc}")
+        report_id = log_execution(query=query, input_config=input_config.value, task=legacy_task.value, tools_used=[tool.name], confidence=0.0, execution_trace=[s.model_dump() for s in trace], answer=f"[Tool Error]: {exc}")
         return QueryResponse(
-            task=task,
+            task=legacy_task,
             input_config=input_config,
             answer=f"Tool execution encountered an error: {exc}. Scoped analysis area: {aoi_bbox or 'Full Scene'}.",
             confidence=0.0,
@@ -227,7 +252,8 @@ def handle_query(
         )
 
     change_stats = None
-    if task in (TaskType.change_vqa, TaskType.change_description):
+    legacy_task = _COMPAT_MAPPING.get(task, task)
+    if legacy_task in (TaskType.change_vqa, TaskType.change_description):
         stats = compute_stats_from_result(result.raw) if result.raw else compute_stats_stub()
         change_stats = ChangeStatsModel(**stats.__dict__)
 
@@ -246,13 +272,13 @@ def handle_query(
     entity = None
     if result.bounding_boxes:
         entity = {"summary": f"region from '{query}'", "bounding_boxes": result.bounding_boxes}
-    context_memory.record_turn(session_id, query, task.value, entity)
+    context_memory.record_turn(session_id, query, legacy_task.value, entity)
 
     # 10. Persist auditable execution trace
     report_id = log_execution(
         query=query,
         input_config=input_config.value,
-        task=task.value,
+        task=legacy_task.value,
         tools_used=[tool.name],
         confidence=result.confidence,
         execution_trace=[s.model_dump() for s in trace],
@@ -260,7 +286,7 @@ def handle_query(
     )
 
     return QueryResponse(
-        task=task,
+        task=legacy_task,
         input_config=input_config,
         answer=result.output_text or "",
         confidence=result.confidence,
@@ -272,7 +298,7 @@ def handle_query(
         sensor_info=sensor_info,
         research_report=research_report,
         low_confidence=low_confidence,
-        evidence_image_url=None,
+        evidence_image_url=result.evidence_image_url,
         bounding_boxes=result.bounding_boxes,
         object_counts=result.object_counts,
         execution_trace=trace,

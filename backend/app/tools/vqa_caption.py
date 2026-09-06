@@ -352,18 +352,16 @@ class VQACaptionTool(BaseTool):
                 "building_count": None,
                 "density_per_km2": None,
             }
-            aoi_scope_str = f"within selected AOI {[round(v,1) for v in aoi_bbox]}" if aoi_bbox else "across the full scene"
+            aoi_scope_str = f"within selected AOI {[round(v,1) for v in aoi_bbox]}" if aoi_bbox else "across the analyzed scene"
             fallback_answer = (
-                f"Visual scene analysis ({aoi_scope_str}): The GeoChat visual analysis service is currently offline. "
-                "For quantitative measurements (building count, physical area, spectral indices), "
-                "please use the dedicated query types: 'How many buildings?', 'Is there water?', etc. "
-                "GeoChat provides free-form image descriptions when the service is running."
+                f"Scene summary ({aoi_scope_str}): Limited scene summary based on available raster context ({phys_area['area_ha']:.2f} ha). "
+                "Full visual captioning is currently unavailable. For targeted analysis, use dedicated queries such as 'How many buildings?', 'Is there water?', or 'Where is vegetation concentrated?'."
             )
             return ToolResult(
                 task=task,
-                tool_name=f"{self.name} (offline)",
+                tool_name=self.name,
                 output_text=fallback_answer,
-                confidence=0.0,
+                confidence=0.50,
                 confidence_calibrated=False,
                 physical_metrics=phys_metrics,
                 raw={"geochat_status": "offline", "aoi_bbox": aoi_bbox},

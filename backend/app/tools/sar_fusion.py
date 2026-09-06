@@ -255,7 +255,7 @@ class SARFusionTool(BaseTool):
         agreement_score = max(0.40, min(0.98, 0.95 - disagreement / 100.0))
 
         aoi_note = " within the selected AOI" if aoi_bbox else ""
-        reproject_note = " (SAR reprojected to Optical grid)" if optical_meta.get("reprojected") else ""
+        reproject_note = " (SAR reprojected to Optical grid)" if optical_meta.get("resampled") else ""
 
         # Explicit Cross-Modal Evidence Breakdown
         answer_parts = [

@@ -23,6 +23,16 @@ class TaskType(str, Enum):
     change_description = "change_description"
     optical_sar_fusion = "optical_sar_fusion"
     dynamic_analysis = "dynamic_analysis"
+    BUILDING_COUNT = "BUILDING_COUNT"
+    BUILDING_DISTRIBUTION = "BUILDING_DISTRIBUTION"
+    WATER_DETECTION = "WATER_DETECTION"
+    VEGETATION_ANALYSIS = "VEGETATION_ANALYSIS"
+    BUILT_UP_ANALYSIS = "BUILT_UP_ANALYSIS"
+    LAND_COVER = "LAND_COVER"
+    SAR_ANALYSIS = "SAR_ANALYSIS"
+    OPTICAL_SAR_FUSION = "OPTICAL_SAR_FUSION"
+    CHANGE_DETECTION = "CHANGE_DETECTION"
+    GENERAL_SCENE_ANALYSIS = "GENERAL_SCENE_ANALYSIS"
 
 
 class ImageRef(BaseModel):
@@ -53,6 +63,7 @@ class ToolResult(BaseModel):
     bounding_boxes: Optional[list[list[float]]] = None  # [x1,y1,x2,y2]
     object_counts: Optional[list[ObjectCount]] = None
     mask_path: Optional[str] = None
+    evidence_image_url: Optional[str] = None
     confidence: float
     # False when `confidence` is a placeholder/integration signal rather than
     # a genuine calibrated probability (e.g. an HTTP-based model server that
