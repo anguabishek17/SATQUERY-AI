@@ -4,6 +4,9 @@ SatQuery AI — FastAPI backend entrypoint.
 Run locally:
     uvicorn app.main:app --reload --port 8000
 """
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -33,6 +36,15 @@ app.include_router(geocoding.router)
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
+    # Lightweight asynchronous model warm-up
+    import threading
+    def _warmup():
+        try:
+            from app.tools.object_counting import warmup_building_model
+            warmup_building_model()
+        except Exception:
+            pass
+    threading.Thread(target=_warmup, daemon=True).start()
 
 
 @app.get("/api/health")

@@ -344,6 +344,11 @@ class ObjectCountingTool(BaseTool):
         detector, detector_status_msg = _try_load_learned_detector()
         image_path = str(saved_path(image.file_id))
 
+        from app.services.analysis_cache import analysis_cache
+        cached_result = analysis_cache.get_task_result(image_path, "building_tool_result", aoi_bbox)
+        if cached_result is not None:
+            return cached_result
+
         transform = None
         crs = None
         img_w, img_h = 512, 512
@@ -474,3 +479,13 @@ class ObjectCountingTool(BaseTool):
                 },
             },
         )
+        analysis_cache.cache_task_result(image_path, "building_tool_result", tool_result, aoi_bbox)
+        return tool_result
+
+
+def warmup_building_model() -> None:
+    """Pre-load neural building model into memory on startup."""
+    try:
+        _get_neural_building_model()
+    except Exception as e:
+        pass

@@ -23,65 +23,73 @@ def determine_evidence_required(query: str) -> Dict[str, Any]:
     }
 
     # Compositional Evidence Selection
-    needs_water = re.search(r'\b(water|river|lake|flood|flooding|wet)\b', query_lower)
-    needs_veg = re.search(r'\b(vegetation|greenery|forest|trees|crop|agriculture|rural)\b', query_lower)
-    needs_built = re.search(r'\b(building|buildings|urban|built-up|structure|house|road|settlement)\b', query_lower)
-    needs_change = re.search(r'\b(change|changed|difference|compare.*time|before.*after|flood|flooding)\b', query_lower)
-    needs_broad = re.search(r'\b(summary|summarize|what can you identify|describe|major features?|stands? out|landscape|land.?use|human (activity|modification)|strongest evidence|what (is|are|does) this|give me)\b', query_lower)
-    needs_spatial = re.search(r'\b(compare.*(north|south|east|west|upper|lower|side)|which side|where are.*concentrated|more.*than|concentrated|distribution|most developed|which part|which (area|region|portion))\b', query_lower)
+    needs_water = bool(re.search(r'\b(water|river|lake|flood|flooding|wet)\b', query_lower))
+    needs_veg = bool(re.search(r'\b(vegetation|greenery|forest|trees|crop|agriculture|rural)\b', query_lower))
+    needs_built = bool(re.search(r'\b(urban|built-up|road|settlement|human (activity|presence))\b', query_lower))
+    needs_building = bool(re.search(r'\b(building|buildings|structure|structures|house|houses)\b', query_lower))
+    needs_change = bool(re.search(r'\b(change|changed|difference|compare.*time|before.*after)\b', query_lower))
+    needs_broad = bool(re.search(r'\b(summary|summarize|what can you identify|describe|major features?|stands? out|landscape|land.?use|strongest evidence|what (is|are|does) this|give me)\b', query_lower))
+    needs_spatial = bool(re.search(r'\b(compare.*(north|south|east|west|upper|lower|side)|which side|where are|where is|more.*than|concentrated|distribution|most developed|which part|which (area|region|portion))\b', query_lower))
 
-    if re.search(r'\b(how many|count|number of)\b', query_lower):
+    is_counting = bool(re.search(r'\b(how many|count|number of|total)\b', query_lower))
+    if is_counting:
         plan["numeric_metrics_required"] = True
 
-    # Urban/rural questions need comprehensive evidence, not just buildings
-    if re.search(r'\b(urban|rural)\b', query_lower):
-        needs_built = True
-        needs_veg = True
-        needs_water = True
-        plan["reasoning_tasks"].append("assess_urban_rural")
-    elif needs_built:
-        plan["reasoning_tasks"].append("assess_built_environment")
-
+    # 1. Water evidence
     if needs_water:
         plan["evidence_required"].add("water")
         plan["tools_required"].add("optical_processing")
-        if not re.search(r'\b(urban|rural)\b', query_lower):
-            plan["reasoning_tasks"].append("assess_water_presence")
+        plan["reasoning_tasks"].append("assess_water_presence")
 
+    # 2. Vegetation evidence
     if needs_veg:
         plan["evidence_required"].add("vegetation")
         plan["tools_required"].add("optical_processing")
-        if not re.search(r'\b(urban|rural)\b', query_lower):
-            plan["reasoning_tasks"].append("assess_vegetation")
-            
-    if needs_built:
-        plan["evidence_required"].update(["buildings", "built_up"])
-        plan["tools_required"].update(["object_counting", "optical_processing"])
-        
+        plan["reasoning_tasks"].append("assess_vegetation")
+
+    # 3. Built-up / Urban land-cover evidence (spectral/RGB landcover, lightweight)
+    if needs_built or (needs_building and not is_counting and not re.search(r'\bwhere are buildings\b', query_lower)):
+        plan["evidence_required"].add("built_up")
+        plan["tools_required"].add("optical_processing")
+        plan["reasoning_tasks"].append("assess_built_environment")
+
+    # 4. Building detection (HEAVY YOLO - strictly for building count / footprint queries)
+    if needs_building and (is_counting or re.search(r'\b(where are buildings|building.*concentrated|building count|detect.*building)\b', query_lower)):
+        plan["evidence_required"].add("buildings")
+        plan["tools_required"].add("object_counting")
+        plan["reasoning_tasks"].append("building_count")
+
+    # 5. Change detection
     if needs_change:
         plan["evidence_required"].add("change")
         plan["tools_required"].add("change_detection")
         plan["temporal_comparison_required"] = True
-        
+
     if re.search(r'\b(flood|flooding)\b', query_lower):
         plan["reasoning_tasks"].append("assess_flooding")
-        
+
+    # 6. Spatial comparison (scope only to requested modality, NEVER trigger YOLO unless building-specific)
     if needs_spatial:
-        plan["evidence_required"].update(["spatial_distribution", "buildings", "vegetation", "water", "built_up"])
-        plan["tools_required"].update(["optical_processing", "object_counting"])
+        plan["evidence_required"].add("spatial_distribution")
         plan["reasoning_tasks"].append("spatial_comparison")
-        
+        if needs_water:
+            plan["evidence_required"].add("water")
+            plan["tools_required"].add("optical_processing")
+        elif needs_veg:
+            plan["evidence_required"].add("vegetation")
+            plan["tools_required"].add("optical_processing")
+        elif needs_building:
+            plan["evidence_required"].add("buildings")
+            plan["tools_required"].add("object_counting")
+        else:
+            plan["evidence_required"].update(["vegetation", "water", "built_up"])
+            plan["tools_required"].add("optical_processing")
+
+    # 7. Broad / Scene-level description (LIGHTWEIGHT: vegetation + water + built_up, NEVER YOLO)
     if needs_broad or not plan["evidence_required"]:
-        # Broad/scene-level questions: gather all available evidence
-        plan["evidence_required"].update(["water", "vegetation", "buildings", "built_up"])
-        plan["tools_required"].update(["optical_processing", "object_counting"])
-        if needs_change:
-            plan["evidence_required"].add("change")
+        plan["evidence_required"].update(["water", "vegetation", "built_up"])
+        plan["tools_required"].add("optical_processing")
         plan["reasoning_tasks"].append("broad_scene_summary")
-        # Also trigger spatial only for directional/comparative questions, NOT for pure scene-description
-        if re.search(r'\b(most developed|concentrated|distribution|which.*more|which (part|portion|area|region))\b', query_lower):
-            plan["evidence_required"].add("spatial_distribution")
-            plan["reasoning_tasks"].append("spatial_comparison")
 
     # Convert sets to lists for JSON serialization
     plan["evidence_required"] = list(plan["evidence_required"])

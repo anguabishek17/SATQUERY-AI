@@ -149,7 +149,10 @@ def _synthesize_answer(
         if has_spectral and water_pct is not None:
             return f"Water covers {water_pct:.1f}% of the analyzed area based on NDWI.", 0.90, True, []
         if rgb_fallback and water_pct is not None:
-            return f"Water covers approximately {water_pct:.1f}% of the analyzed area based on an RGB-based visual estimate.", 0.70, False, ["Precise water detection requires NIR/SWIR data."]
+            debug_w = metrics.get("debug_water", {})
+            suppressed = debug_w.get("suppressed_road_candidates", 0)
+            extra_note = f" ({suppressed} road-like candidate region{'s were' if suppressed != 1 else ' was'} suppressed)." if suppressed > 0 else ""
+            return f"Water covers approximately {water_pct:.1f}% of the analyzed area based on an RGB-based water estimate after spatial and road-structure suppression{extra_note}.", 0.70, False, ["NIR/SWIR multispectral data is required for precise water detection."]
         return "Water is visually present, but quantitative NDWI is unavailable as this image lacks NIR/SWIR bands.", 0.70, False, ["NIR/SWIR data is required for precise water detection."]
 
     if task_type == TaskType.VEGETATION_ANALYSIS:
@@ -393,10 +396,20 @@ class DynamicAnalysisTool(BaseTool):
                             evidence["built_up_evidence"] = {"builtup_pct": stats.get("builtup_pct", 0)}
                             physical_metrics["builtup_pct"] = stats.get("builtup_pct", 0)
                     else:
+                        from app.services.analysis_cache import analysis_cache
                         from app.services.rgb_landcover import rgb_landcover_estimation
-                        rgb_stats = rgb_landcover_estimation(image_path, aoi_bbox)
+                        
+                        cached_rgb = analysis_cache.get_task_result(image_path, "land_cover", aoi_bbox)
+                        if cached_rgb is not None:
+                            rgb_stats = cached_rgb
+                        else:
+                            rgb_stats = rgb_landcover_estimation(image_path, aoi_bbox)
+                            analysis_cache.cache_task_result(image_path, "land_cover", rgb_stats, aoi_bbox)
+
                         if "water" in plan["evidence_required"]:
                             evidence["water_evidence"] = {"water_pct": rgb_stats["water_pct"], "rgb_fallback": True}
+                            if "debug_water" in rgb_stats:
+                                evidence["water_evidence"]["debug_water"] = rgb_stats["debug_water"]
                             physical_metrics["water_pct"] = rgb_stats["water_pct"]
                         if "vegetation" in plan["evidence_required"]:
                             evidence["vegetation_evidence"] = {"vegetation_pct": rgb_stats["vegetation_pct"], "rgb_fallback": True}
@@ -413,28 +426,43 @@ class DynamicAnalysisTool(BaseTool):
                             "rgb_fallback": True,
                             "overlay_url": rgb_stats["overlay_url"]
                         })
+                        if "debug_water" in rgb_stats:
+                            physical_metrics["debug_water"] = rgb_stats["debug_water"]
 
             except Exception as e:
                 import traceback
                 traceback.print_exc()
                 evidence["optical_error"] = str(e)
 
-        # 2. Building detector (only if required)
-        if "object_counting" in plan["tools_required"]:
+        # 2. Building detector (STRICT: only if task is explicitly building-related)
+        if "object_counting" in plan["tools_required"] and getattr(self, "_active_task_type", None) in (TaskType.BUILDING_COUNT, TaskType.BUILDING_DISTRIBUTION, TaskType.object_counting):
             try:
-                from app.tools.object_counting import ObjectCountingTool
-                counter = ObjectCountingTool()
-                count_res = counter.run("building", images, aoi_bbox=aoi_bbox)
+                from app.services.analysis_cache import analysis_cache
+                cached_bld = analysis_cache.get_task_result(image_path, "building_analysis", aoi_bbox)
+                if cached_bld is not None:
+                    count_metrics = cached_bld
+                else:
+                    from app.tools.object_counting import ObjectCountingTool
+                    counter = ObjectCountingTool()
+                    count_res = counter.run("building", images, aoi_bbox=aoi_bbox)
+                    count_metrics = {
+                        "building_count": count_res.physical_metrics.get("building_count"),
+                        "density_per_km2": count_res.physical_metrics.get("density_per_km2"),
+                        "area_ha": count_res.physical_metrics.get("area_ha"),
+                        "area_sq_km": count_res.physical_metrics.get("area_sq_km"),
+                        "boxes": count_res.bounding_boxes or []
+                    }
+                    analysis_cache.cache_task_result(image_path, "building_analysis", count_metrics, aoi_bbox)
 
                 evidence["building_evidence"] = {
-                    "count":   count_res.physical_metrics.get("building_count"),
-                    "density": count_res.physical_metrics.get("density_per_km2"),
-                    "area_ha": count_res.physical_metrics.get("area_ha"),
+                    "count":   count_metrics.get("building_count"),
+                    "density": count_metrics.get("density_per_km2"),
+                    "area_ha": count_metrics.get("area_ha"),
                 }
-                physical_metrics["building_count"]  = count_res.physical_metrics.get("building_count")
-                physical_metrics["density_per_km2"] = count_res.physical_metrics.get("density_per_km2")
-                physical_metrics["area_ha"]         = count_res.physical_metrics.get("area_ha")
-                physical_metrics["area_sq_km"]      = count_res.physical_metrics.get("area_sq_km")
+                physical_metrics["building_count"]  = count_metrics.get("building_count")
+                physical_metrics["density_per_km2"] = count_metrics.get("density_per_km2")
+                physical_metrics["area_ha"]         = count_metrics.get("area_ha")
+                physical_metrics["area_sq_km"]      = count_metrics.get("area_sq_km")
 
             except Exception as e:
                 evidence["building_error"] = str(e)
@@ -488,6 +516,7 @@ class DynamicAnalysisTool(BaseTool):
         from app.services.sensor_intelligence import classify_multi_image_workflow
         input_config = classify_multi_image_workflow(images)
         task_type = classify(query, input_config)
+        self._active_task_type = task_type
         
         intent  = _classify_intent(query, plan)
         evidence: Dict[str, Any] = {}
@@ -528,8 +557,29 @@ class DynamicAnalysisTool(BaseTool):
                     r1_name, r2_name  = "north", "south"
                     r1_disp, r2_disp  = "northern/upper", "southern/lower"
 
-                r1_ev, r1_m = self._gather_evidence(plan, image_path, images, r1_bbox)
-                r2_ev, r2_m = self._gather_evidence(plan, image_path, images, r2_bbox)
+                # If building distribution is requested, get building boxes ONCE and partition mathematically
+                if task_type in (TaskType.BUILDING_DISTRIBUTION, TaskType.BUILDING_COUNT):
+                    full_ev, full_m = self._gather_evidence(plan, image_path, images, aoi_bbox)
+                    from app.services.analysis_cache import analysis_cache
+                    cached_bld = analysis_cache.get_task_result(image_path, "building_analysis", aoi_bbox) or {}
+                    all_boxes = cached_bld.get("boxes", [])
+                    
+                    if is_left_right:
+                        r1_boxes = [b for b in all_boxes if (b[0] + b[2]) / 2 < mid]
+                        r2_boxes = [b for b in all_boxes if (b[0] + b[2]) / 2 >= mid]
+                    else:
+                        r1_boxes = [b for b in all_boxes if (b[1] + b[3]) / 2 < mid]
+                        r2_boxes = [b for b in all_boxes if (b[1] + b[3]) / 2 >= mid]
+                        
+                    r1_m = dict(full_m)
+                    r1_m["building_count"] = len(r1_boxes)
+                    r2_m = dict(full_m)
+                    r2_m["building_count"] = len(r2_boxes)
+                    r1_ev = {"building_count": len(r1_boxes)}
+                    r2_ev = {"building_count": len(r2_boxes)}
+                else:
+                    r1_ev, r1_m = self._gather_evidence(plan, image_path, images, r1_bbox)
+                    r2_ev, r2_m = self._gather_evidence(plan, image_path, images, r2_bbox)
 
                 evidence = {r1_name: r1_m, r2_name: r2_m}
                 physical_metrics = {r1_name: r1_m, r2_name: r2_m}

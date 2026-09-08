@@ -9,6 +9,8 @@ Visibly performs:
   5. Truthful Research-grade analysis report generation (ISRO / researcher multi-format output)
   6. Auditable execution trace persistence
 """
+import logging
+logger = logging.getLogger(__name__)
 
 from app.config import LOW_CONFIDENCE_THRESHOLD
 from app.controller import context_memory
@@ -150,11 +152,22 @@ def handle_query(
     session_id: str | None = None,
     aoi_bbox: list[float] | None = None,
 ) -> QueryResponse:
+    import time
+    t_start = time.time()
     trace: list[ExecutionStep] = []
     session_id = session_id or context_memory.new_session()
 
     # 1. Automated Sensor Intelligence Inspection
-    primary_img_path = str(saved_path(images[0].file_id)) if images else ""
+    t0_understand = time.time()
+    primary_img_path = ""
+    try:
+        if images:
+            primary_img_path = str(saved_path(images[0].file_id))
+    except FileNotFoundError:
+        trace.append(ExecutionStep(
+            step="sensor_intelligence",
+            detail=f"file_id '{images[0].file_id}' not found in upload store; proceeding without sensor metadata.",
+        ))
     sensor_info = inspect_image_sensor(primary_img_path) if primary_img_path else {}
 
     trace.append(ExecutionStep(
@@ -188,6 +201,7 @@ def handle_query(
                    f"{' -> '.join(s.action for s in chain_steps)}",
         ))
         return _handle_compound_query(query, images, chain_steps, chain, trace, session_id, sensor_info)
+    ms_understand = int((time.time() - t0_understand) * 1000)
 
     # 4. Automated Workflow Classification
     input_config = classify_multi_image_workflow(images)
@@ -197,20 +211,32 @@ def handle_query(
     ))
 
     # 5. Classify task from query + input config
+    t0_classify = time.time()
     task = classify(query, input_config)
+    ms_classify = int((time.time() - t0_classify) * 1000)
     trace.append(ExecutionStep(
         step="task_classification",
         detail=f"query classified as task={task.value}",
     ))
 
     # 6. Select tool from registry
+    t0_tool_sel = time.time()
     tool = _REGISTRY[task]
+    ms_tool_sel = int((time.time() - t0_tool_sel) * 1000)
     trace.append(ExecutionStep(
         step="tool_selection",
         detail=f"selected tool={tool.name} for task={task.value}",
     ))
 
+    # Image Preprocessing timing
+    t0_preproc = time.time()
+    if primary_img_path:
+        from app.services.analysis_cache import analysis_cache
+        pre = analysis_cache.get_preprocessed_image(primary_img_path, aoi_bbox)
+    ms_preproc = int((time.time() - t0_preproc) * 1000)
+
     # 7. Defensive Tool Execution with Universal AOI Scoping
+    t0_geo = time.time()
     try:
         result = tool.run(query, images, aoi_bbox=aoi_bbox)
         detector_status = result.raw.get("detector_status") if result.raw else None
@@ -232,7 +258,6 @@ def handle_query(
             step="tool_execution_error",
             detail=f"defensive error catch: tool={tool.name} raised exception: {exc}",
         ))
-        # Produce valid fallback QueryResponse instead of crashing backend
         legacy_task = _COMPAT_MAPPING.get(task, task)
         research_report = generate_research_report(query=query, tool_result=None, sensor_info=sensor_info, aoi_bbox=aoi_bbox, session_id=session_id)
         report_id = log_execution(query=query, input_config=input_config.value, task=legacy_task.value, tools_used=[tool.name], confidence=0.0, execution_trace=[s.model_dump() for s in trace], answer=f"[Tool Error]: {exc}")
@@ -251,6 +276,7 @@ def handle_query(
             sensor_info=sensor_info,
             research_report=research_report,
         )
+    ms_geo = int((time.time() - t0_geo) * 1000)
 
     change_stats = None
     legacy_task = _COMPAT_MAPPING.get(task, task)
@@ -286,34 +312,70 @@ def handle_query(
         answer=result.output_text or "",
     )
 
-    # 11. AI Visual Intelligence Layer (Gemini)
-    # Only invoke for visual interpretation if images are available
-    final_answer = result.output_text or ""
+    # 11. Universal AI Response Pipeline
+    from app.ai.evidence_builder import build_evidence_json
+    from app.ai.ai_reasoner import generate_ai_reasoning
+    from app.ai.evidence_validator import validate_reasoning
+
+    t0_ev = time.time()
+    evidence = build_evidence_json(query, legacy_task, result)
+    ms_evidence = int((time.time() - t0_ev) * 1000)
     
-    # Collect computational evidence to ground Gemini
-    comp_evidence = {
-        "physical_metrics": result.physical_metrics,
-        "fusion_agreement_score": result.fusion_agreement_score,
-        "detector_status": detector_status,
-        "object_count": len(result.bounding_boxes or []),
-        "change_stats": change_stats.model_dump() if change_stats else None,
-    }
+    trace.append(ExecutionStep(
+        step="evidence_json",
+        detail=f"standardized evidence payload built: source={evidence.source_tool}"
+    ))
+
+    # Generate AI Reasoning based on Evidence JSON
+    t0_reasoning = time.time()
+    reasoning = generate_ai_reasoning(query, evidence)
+    ms_reasoning = int((time.time() - t0_reasoning) * 1000)
     
-    image_paths = [str(saved_path(img.file_id)) for img in images if img.file_id]
+    trace.append(ExecutionStep(
+        step="ai_reasoning",
+        detail="generated explanation from evidence json"
+    ))
+
+    # Validate to ensure no hallucinated claims
+    t0_val = time.time()
+    validation_result = validate_reasoning(reasoning, evidence)
+    ms_val = int((time.time() - t0_val) * 1000)
     
-    # Do not call Gemini for simple building counting unless strictly requested, to save quota.
-    # We call it for most qualitative/analytical tasks.
-    if legacy_task not in (TaskType.object_counting, TaskType.BUILDING_COUNT) or "describe" in query.lower() or "visual" in query.lower():
-        visual_explanation = generate_visual_explanation(query, image_paths, comp_evidence)
-        
-        if visual_explanation:
-            final_answer = (
-                f"**AI ANALYSIS**\n"
-                f"{result.output_text}\n\n"
-                f"**VISUAL INTERPRETATION**\n"
-                f"{visual_explanation}"
-            )
-            
+    trace.append(ExecutionStep(
+        step="evidence_validation",
+        detail=f"validation pass={validation_result['valid']}; reason='{validation_result['reason']}'"
+    ))
+
+    final_answer = validation_result['corrected_answer']
+    ms_total = int((time.time() - t_start) * 1000)
+
+    yolo_executed = bool(
+        tool.name == "building-detector"
+        or (result.raw and result.raw.get("detector_status") == "loaded")
+        or (task in (TaskType.BUILDING_COUNT, TaskType.BUILDING_DISTRIBUTION))
+    )
+
+    # Emit performance logs
+    perf_log = (
+        f"\n[PERF] Query Understanding: {ms_understand} ms\n"
+        f"[PERF] Task Classification: {ms_classify} ms\n"
+        f"[PERF] Tool Selection: {ms_tool_sel} ms\n"
+        f"[PERF] Image Preprocessing: {ms_preproc} ms\n"
+        f"[PERF] Geoanalysis: {ms_geo} ms\n"
+        f"[PERF] Evidence JSON: {ms_evidence} ms\n"
+        f"[PERF] AI Reasoning: {ms_reasoning} ms\n"
+        f"[PERF] Validation: {ms_val} ms\n"
+        f"[PERF] TOTAL: {ms_total} ms\n"
+        f"[PERF] YOLO EXECUTED: {'TRUE' if yolo_executed else 'FALSE'}\n"
+    )
+    print(perf_log)
+    logger.info(perf_log)
+
+    trace.append(ExecutionStep(
+        step="performance_metrics",
+        detail=f"Total: {ms_total}ms | Geoanalysis: {ms_geo}ms | YOLO: {yolo_executed}"
+    ))
+
     return QueryResponse(
         task=legacy_task,
         input_config=input_config,

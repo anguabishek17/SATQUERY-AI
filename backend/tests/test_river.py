@@ -4,6 +4,14 @@ Guarantees zero false positive building counts on river edges, water channels, a
 """
 
 import os
+import sys
+from pathlib import Path
+
+# Ensure backend root is on sys.path
+backend_dir = str(Path(__file__).resolve().parent.parent)
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
 import cv2
 import numpy as np
 from app.schemas import ImageRef

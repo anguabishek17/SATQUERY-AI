@@ -3,7 +3,10 @@ const BASE = '/api'
 export function getErrorMessage(error) {
   if (!error) return 'Unknown error'
   if (typeof error === 'string') return error
-  if (error.message) return error.message
+  if (error.message) {
+    if (error.message === '{}') return null // Ignore empty object stringified
+    return error.message
+  }
   if (error.detail) {
     if (typeof error.detail === 'string') return error.detail
     return JSON.stringify(error.detail)
@@ -12,6 +15,7 @@ export function getErrorMessage(error) {
     if (typeof error.error === 'string') return error.error
     return JSON.stringify(error.error)
   }
+  if (typeof error === 'object' && Object.keys(error).length === 0) return null
   return JSON.stringify(error)
 }
 
@@ -26,17 +30,32 @@ export async function uploadImage(file, modality, acquisitionDate) {
       method: 'POST',
       body: form,
     })
+    
     if (!res.ok) {
-      const errJson = await res.json().catch(() => ({}))
-      throw new Error(getErrorMessage(errJson) || `Upload failed (HTTP ${res.status})`)
+      let errText = await res.text().catch(() => '')
+      let errJson = null
+      try { errJson = JSON.parse(errText) } catch(e) {}
+      
+      let msg = errJson ? getErrorMessage(errJson) : errText
+      
+      if (!msg) {
+        if (res.status === 400) msg = 'Bad Request: Invalid image format or parameters.'
+        else if (res.status === 404) msg = 'Endpoint not found. Is the backend running the correct version?'
+        else if (res.status === 413) msg = 'Payload Too Large: The image is too big to process.'
+        else if (res.status === 422) msg = 'Unprocessable Entity: Missing required fields.'
+        else if (res.status >= 500) msg = 'Internal Server Error. Check backend logs.'
+        else msg = 'Please check the backend server and image format.'
+      }
+      
+      throw new Error(msg)
     }
-    return res.json()
+    return await res.json()
   } catch (err) {
-    // Distinguish network errors (backend unreachable) from HTTP errors
     if (err instanceof TypeError && err.message === 'Failed to fetch') {
-      throw new Error('Upload failed: Backend unavailable (server may not be running on port 8000)')
+      throw new Error('Upload failed: Backend unavailable (network/connection failure)')
     }
-    throw new Error(`Upload failed: ${getErrorMessage(err)}`)
+    const finalMsg = getErrorMessage(err) || 'Please check the backend server and image format.'
+    throw new Error(`Upload failed: ${finalMsg}`)
   }
 }
 

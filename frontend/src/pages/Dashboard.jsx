@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import UploadPanel from '../components/UploadPanel'
 import SatelliteMapWorkspace from '../components/SatelliteMapWorkspace'
 import OpticalSarWorkspace from '../components/OpticalSarWorkspace'
@@ -19,6 +19,8 @@ export default function Dashboard() {
   const [error, setError] = useState(null)
   const [aoiBbox, setAoiBbox] = useState(null)
   const [queryInput, setQueryInput] = useState('')
+  const [isListening, setIsListening] = useState(false)
+  const recognitionRef = useRef(null)
   const [searchLocation, setSearchLocation] = useState('')
   const [searchBusy, setSearchBusy] = useState(false)
   const [searchedCoords, setSearchedCoords] = useState(null)
@@ -77,6 +79,53 @@ export default function Dashboard() {
 
   const isBuildingTask = result?.task === 'object_counting'
   const isBuildingLoaded = result?.detector_status === 'loaded' || result?.raw?.detector_status === 'loaded' || result?.execution_trace?.some(step => step.detail?.includes('(LOADED [OK])'))
+
+  function toggleVoiceInput() {
+    if (isListening) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop()
+      }
+      setIsListening(false)
+      return
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      alert("Voice input is not supported in this browser. Please use Chrome or Edge.")
+      return
+    }
+
+    const recognition = new SpeechRecognition()
+    recognition.continuous = false
+    recognition.interimResults = true
+    recognition.language = "en-IN"
+
+    const baseText = queryInput.trim() ? queryInput.trim() + " " : ""
+
+    recognition.onstart = () => {
+      setIsListening(true)
+    }
+
+    recognition.onresult = (event) => {
+      let transcript = ""
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript
+      }
+      setQueryInput(baseText + transcript)
+    }
+
+    recognition.onerror = (event) => {
+      console.error("Speech recognition error:", event.error)
+      setIsListening(false)
+    }
+
+    recognition.onend = () => {
+      setIsListening(false)
+    }
+
+    recognitionRef.current = recognition
+    recognition.start()
+  }
 
   async function handleLocationSearch(e) {
     e.preventDefault()
@@ -318,19 +367,28 @@ export default function Dashboard() {
               }}
               className="relative flex items-center"
             >
+              <button
+                type="button"
+                onClick={toggleVoiceInput}
+                title="Speak your query"
+                aria-label="Voice input"
+                className={`absolute left-1.5 flex h-7 w-7 items-center justify-center rounded-lg transition-colors shadow ${isListening ? 'bg-rose-500/20 text-rose-500' : 'bg-[#1E293B] text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
+              >
+                {isListening ? '🔴' : '🎤'}
+              </button>
               <input
                 type="text"
                 value={queryInput}
                 onChange={(e) => setQueryInput(e.target.value)}
                 placeholder="Ask anything about your satellite imagery..."
-                className="w-full rounded-xl border border-slate-700 bg-[#0B0F19] py-2.5 pl-3.5 pr-11 text-xs text-slate-100 placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none shadow-inner"
+                className="w-full rounded-xl border border-slate-700 bg-[#0B0F19] py-2.5 pl-10 pr-11 text-xs text-slate-100 placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none shadow-inner"
               />
               <button
                 type="submit"
                 disabled={loading || !queryInput.trim()}
-                className="absolute right-1.5 flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 transition-colors shadow"
+                className="absolute right-1.5 flex h-7 w-auto px-3 items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 transition-colors shadow whitespace-nowrap"
               >
-                {loading ? '⌛' : '➔'}
+                {loading ? '⌛ Processing (~60s)' : '➔ Submit'}
               </button>
             </form>
           </div>
@@ -438,7 +496,7 @@ export default function Dashboard() {
                 <span>📊</span> Analysis Results
               </h3>
               <span className="text-xs font-mono text-slate-400">
-                {result?.task ? result.task.replace(/_/g, ' ').toUpperCase() : 'NO QUERY RUN YET'}
+                {loading ? 'ANALYZING...' : (result?.task ? result.task.replace(/_/g, ' ').toUpperCase() : 'NO QUERY RUN YET')}
               </span>
             </div>
 
@@ -535,9 +593,40 @@ export default function Dashboard() {
                     </div>
                   ))
                 ) : (
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <span>○</span>
-                    <span>Waiting for query execution...</span>
+                  <div className="flex flex-col gap-2 text-slate-500 p-2">
+                    {loading ? (
+                      <div className="space-y-2.5 py-1">
+                        <div className="flex items-center gap-2 text-indigo-400 font-medium">
+                          <span className="animate-spin text-sm">⚙️</span>
+                          <span>Universal SatQuery AI Pipeline Active</span>
+                        </div>
+                        <div className="space-y-1.5 pl-2 border-l border-indigo-500/30 text-[11px] text-slate-300">
+                          <div className="flex items-center gap-1.5 text-emerald-400">
+                            <span>✓</span> <span>Query Understanding</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-emerald-400">
+                            <span>✓</span> <span>Task Classification & Tool Selection</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-indigo-400 font-semibold animate-pulse">
+                            <span>⟳</span> <span>Running Specialist GeoAnalysis...</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-slate-500">
+                            <span>○</span> <span>Evidence JSON Extraction</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-slate-500">
+                            <span>○</span> <span>AI Reasoning & Grounding</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-slate-500">
+                            <span>○</span> <span>Evidence Validation</span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span>○</span>
+                        <span>Waiting for query execution...</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
