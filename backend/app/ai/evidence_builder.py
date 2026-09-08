@@ -57,11 +57,53 @@ def build_evidence_json(query: str, task: TaskType, result: ToolResult) -> Evide
             evidence.spatial["region"] = raw.get("primary_change_zone", "unknown")
             
     # 4. Map Optical-SAR Fusion
-    elif task in (TaskType.OPTICAL_SAR_FUSION, TaskType.SAR_ANALYSIS):
-        evidence.fusion_evidence = {
-            "fusion_agreement_score": result.fusion_agreement_score
-        }
+    elif task in (TaskType.OPTICAL_SAR_FUSION, TaskType.SAR_ANALYSIS, TaskType.optical_sar_fusion):
+        optical_water = raw.get("optical_water_pct", metrics.get("optical_water_pct", round(metrics.get("water_pct", 0.0), 2)))
+        sar_water = raw.get("sar_water_pct", metrics.get("sar_water_pct", round(metrics.get("water_pct", 0.0), 2)))
+        water_agree = raw.get("water_agreement_pct", round(metrics.get("water_pct", 0.0), 2))
+        built_agree = raw.get("builtup_agreement_pct", round(metrics.get("builtup_pct", 0.0), 2))
+        veg_pct = round(metrics.get("vegetation_pct", raw.get("vegetation_pct", 0.0)), 2)
+        disagree_pct = raw.get("disagreement_pct", round(metrics.get("disagreement_pct", 0.0), 2))
+        agr_score = result.fusion_agreement_score if result.fusion_agreement_score is not None else result.confidence
+        agr_pct = round(agr_score * 100, 1) if agr_score is not None else 0.0
+        sar_mean_db = raw.get("sar_mean_db", metrics.get("sar_mean_db"))
+
         evidence.measurements.update(metrics)
+        evidence.measurements["optical_water_pct"] = optical_water
+        evidence.measurements["sar_water_pct"] = sar_water
+        evidence.measurements["optical_vegetation_pct"] = veg_pct
+        evidence.measurements["optical_builtup_pct"] = built_agree
+        evidence.measurements["sar_builtup_pct"] = built_agree
+        evidence.measurements["water_agreement_pct"] = water_agree
+        evidence.measurements["builtup_agreement_pct"] = built_agree
+        evidence.measurements["disagreement_pct"] = disagree_pct
+        evidence.measurements["agreement_score_pct"] = agr_pct
+        if sar_mean_db is not None:
+            evidence.measurements["sar_mean_db"] = sar_mean_db
+
+        evidence.fusion_evidence = {
+            "optical_observations": {
+                "water_percent": optical_water,
+                "vegetation_percent": veg_pct,
+                "built_up_percent": built_agree,
+                "features_identified": f"NDWI water ({optical_water}%), NDVI vegetation ({veg_pct}%), spectral built-up ({built_agree}%)"
+            },
+            "sar_observations": {
+                "water_percent": sar_water,
+                "built_up_percent": built_agree,
+                "mean_backscatter_db": sar_mean_db,
+                "features_identified": f"Specular reflection water ({sar_water}%), double-bounce structural backscatter ({built_agree}%)"
+            },
+            "comparison": {
+                "water_agreement_percent": water_agree,
+                "builtup_agreement_percent": built_agree,
+                "disagreement_percent": disagree_pct,
+                "spatial_disagreement_location": "Global radiometric threshold divergence; exact pixel coordinates not localized" if disagree_pct > 0 else "None"
+            },
+            "fusion_insight": "SAR provides surface roughness and structural reflectivity independent of solar illumination, while optical provides multispectral vegetative identification.",
+            "agreement_percent": agr_pct,
+            "confidence_percent": int(result.confidence * 100) if result.confidence else int(agr_pct)
+        }
 
     # General spatial capture
     if result.bounding_boxes:

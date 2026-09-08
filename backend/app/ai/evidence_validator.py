@@ -33,6 +33,8 @@ def validate_reasoning(reasoning: str, evidence: EvidenceModel) -> dict:
             "Review the AI reasoning below and compare it against the Evidence JSON.\n"
             "If the reasoning contains unsupported claims (e.g. claiming 'flooding' without water evidence, "
             "fabricating numbers, or inventing locations), correct it to be strictly factual based ONLY on the evidence.\n"
+            "If the reasoning follows the 5-part structure (Optical:, SAR:, Comparison:, Fusion insight:, Agreement/Confidence:), "
+            "preserve that structure and verify every percentage against the Evidence JSON.\n"
             "If the reasoning is already factual, return it exactly as is for the corrected_answer.\n\n"
             f"Evidence JSON:\n{json.dumps(evidence.model_dump(), indent=2)}\n\n"
             f"AI Reasoning to Validate:\n{reasoning}\n\n"

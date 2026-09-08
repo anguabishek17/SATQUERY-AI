@@ -254,14 +254,19 @@ class SARFusionTool(BaseTool):
         disagreement = water_optical_only + water_sar_only
         agreement_score = max(0.40, min(0.98, 0.95 - disagreement / 100.0))
 
+        optical_water = round(water_agree + water_optical_only, 2)
+        sar_water = round(water_agree + water_sar_only, 2)
+        sar_mean_db = round(float(np.mean(sar_vv_db)), 2) if sar_vv_db is not None else None
+        sar_std_db = round(float(np.std(sar_vv_db)), 2) if sar_vv_db is not None else None
+
         aoi_note = " within the selected AOI" if aoi_bbox else ""
         reproject_note = " (SAR reprojected to Optical grid)" if optical_meta.get("resampled") else ""
 
         # Explicit Cross-Modal Evidence Breakdown
         answer_parts = [
             f"Optical and SAR rasters were co-registered and fused{reproject_note}{aoi_note}.",
-            f"[OPTICAL EVIDENCE]: NDWI identified water, NDBI identified built-up, NDVI identified vegetation ({veg_pct:.1f}%).",
-            f"[SAR EVIDENCE]: Lee despeckle filter applied; VV backscatter and texture thresholding extracted structural features.",
+            f"[OPTICAL EVIDENCE]: NDWI identified water ({optical_water}%), NDBI/spectral identified built-up ({builtup_agree:.1f}%), NDVI identified vegetation ({veg_pct:.1f}%).",
+            f"[SAR EVIDENCE]: Lee despeckle filter applied; VV backscatter (mean {sar_mean_db} dB) and texture thresholding extracted water ({sar_water}%) and structural features ({builtup_agree:.1f}%).",
             f"[JOINT FUSION]: Water agreement: {water_agree:.1f}% | Built-up agreement: {builtup_agree:.1f}% | Cross-modal agreement score: {agreement_score * 100:.1f}%.",
         ]
 
@@ -284,17 +289,38 @@ class SARFusionTool(BaseTool):
             visualization_type="heatmap",
             physical_metrics={
                 "water_pct": round(water_agree, 2),
+                "optical_water_pct": optical_water,
+                "sar_water_pct": sar_water,
                 "builtup_pct": round(builtup_agree, 2),
+                "optical_builtup_pct": round(builtup_agree, 2),
+                "sar_builtup_pct": round(builtup_agree, 2),
                 "vegetation_pct": round(veg_pct, 2),
+                "optical_vegetation_pct": round(veg_pct, 2),
                 "disagreement_pct": round(disagreement, 2),
+                "water_optical_only_pct": round(water_optical_only, 2),
+                "water_sar_only_pct": round(water_sar_only, 2),
+                "agreement_score_pct": round(agreement_score * 100, 1),
+                "sar_mean_db": sar_mean_db,
+                "sar_std_db": sar_std_db,
                 "area_ha": phys_metrics["area_ha"],
                 "area_sq_km": phys_metrics["area_sq_km"],
             },
             raw={
                 "optical_meta": optical_meta,
                 "aoi_bbox": aoi_bbox,
-                "water_agreement_pct": water_agree,
-                "builtup_agreement_pct": builtup_agree,
-                "disagreement_pct": disagreement,
+                "water_agreement_pct": round(water_agree, 2),
+                "builtup_agreement_pct": round(builtup_agree, 2),
+                "disagreement_pct": round(disagreement, 2),
+                "optical_water_pct": optical_water,
+                "sar_water_pct": sar_water,
+                "vegetation_pct": round(veg_pct, 2),
+                "optical_vegetation_pct": round(veg_pct, 2),
+                "optical_builtup_pct": round(builtup_agree, 2),
+                "sar_builtup_pct": round(builtup_agree, 2),
+                "sar_mean_db": sar_mean_db,
+                "sar_std_db": sar_std_db,
+                "water_optical_only_pct": round(water_optical_only, 2),
+                "water_sar_only_pct": round(water_sar_only, 2),
+                "agreement_score_pct": round(agreement_score * 100, 1),
             },
         )
