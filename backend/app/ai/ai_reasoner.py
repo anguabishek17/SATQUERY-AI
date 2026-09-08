@@ -75,29 +75,34 @@ def generate_ai_reasoning(query: str, evidence: EvidenceModel) -> str:
             prompt = (
                 "You are SatQuery AI, an explainable remote-sensing assistant.\n"
                 "You must answer the user's question using ONLY the provided Evidence JSON.\n\n"
-                "CRITICAL INSTRUCTIONS FOR OPTICAL + SAR FUSION QUERIES:\n"
-                "DO NOT generate generic descriptions like 'Cross-modal optical and SAR fusion analysis reveals complementary physical characteristics with cross-sensor alignment'.\n"
-                "DO NOT repeat textbook explanations.\n"
-                "Every claim MUST be grounded strictly in the Evidence JSON. Never invent objects, locations, percentages, or physical properties.\n"
-                "Keep the answer simple, technical, and evaluator-friendly. Maximum 4-6 sentences.\n\n"
-                "You MUST use this EXACT structure with double linebreaks between sections:\n\n"
-                "Optical:\n"
-                "[Describe ONLY features supported by Evidence JSON (e.g. vegetation, water, built-up). If no useful optical observation exists, write: 'Optical evidence is limited to the available scene metrics.']\n\n"
-                "SAR:\n"
-                "[Describe ONLY SAR-derived evidence (e.g. radar backscatter in dB, specular water, structural response). If Evidence JSON does not contain enough SAR-specific information, write: 'SAR-specific evidence is limited in the current analysis.']\n\n"
-                "Comparison:\n"
-                "[Explain the actual relationship between optical and SAR evidence using available agreement or overlap metrics. Do not interpret agreement % as 'percent of the image that matches'.]\n\n"
-                "Fusion insight:\n"
-                "[Explain what combining both modalities provides ONLY from available evidence. E.g. 'Combining the two modalities provides both optical scene information and SAR-derived measurements, giving a broader representation of the analyzed area.' Do NOT use generic textbook statements like 'SAR penetrates clouds and detects moisture' unless supported by evidence.]\n\n"
-                "Agreement/Confidence:\n"
-                "[Report the actual optical-SAR agreement or confidence value from Evidence JSON, e.g. '40.0%'.]\n\n"
+                "CRITICAL RULES FOR OPTICAL + SAR FUSION QUERIES:\n"
+                "1. RAW VS VALIDATED METRICS:\n"
+                "   - optical.raw_indicators.ndwi_water_candidate_pct is only an initial candidate indicator, NOT confirmed water.\n"
+                "   - Use optical.validated_results (water_coverage_pct, vegetation_coverage_pct, built_up_coverage_pct) for confirmed optical land-cover.\n"
+                "   - sar.raw_indicators contains raw candidate/response metrics and mean_backscatter_db, while sar.validated_results contains confirmed coverage.\n"
+                "   - NEVER report candidate pixels (e.g. 72.68% or 84.59% NDWI) as actual water coverage when validated_results reports 0.0%.\n"
+                "2. FUSION / INTEGRATION SCORE:\n"
+                "   - The fusion metric (e.g. 40.0%) is an 'integration score' (fusion.score_type = 'integration_score').\n"
+                "   - DO NOT call it accuracy, spatial agreement, or probability.\n"
+                "   - Label it clearly: 'The reported fusion integration score is [X]%; this is an integration score, not a calibrated accuracy measure.'\n"
+                "3. SPATIAL DISAGREEMENT / CORRESPONDENCE:\n"
+                "   - If spatial_agreement_pct is null or unavailable, DO NOT invent spatial disagreement locations or claims.\n"
+                "   - If asked 'Where do optical and SAR disagree?', respond strictly: 'The available evidence is insufficient to determine this reliably.'\n"
+                "4. NO TEXTBOOK DEFINITIONS:\n"
+                "   - DO NOT write generic phrases like 'Cross-modal optical and SAR fusion analysis reveals complementary physical characteristics'.\n"
+                "   - Every factual statement must be directly traceable to Evidence JSON.\n"
+                "5. FORMAT REQUIREMENT (Maximum 4-6 sentences, structured as follows with labels and double linebreaks):\n\n"
+                "Optical: [Validated optical observation supported by Evidence JSON, using validated_results].\n\n"
+                "SAR: [Validated SAR observation supported by Evidence JSON, e.g. validated coverage and mean backscatter dB if present].\n\n"
+                "Comparison: [Specific evidence-supported similarity or difference].\n\n"
+                "Fusion insight: [What combining the available measurements provides].\n\n"
+                "Agreement/Confidence: [Report the fusion integration score with explicit label stating it is an integration score, not a calibrated accuracy measure].\n\n"
                 "QUERY-SPECIFIC BEHAVIOR:\n"
-                "- For 'Compare the optical and SAR images' / 'Compare optical and SAR images': Give direct optical vs SAR comparison.\n"
-                "- For 'How does SAR complement optical imagery?': Explain specifically what additional SAR information is supported by the evidence.\n"
-                "- For 'What additional information does SAR provide?': Mention only SAR-specific measurements/features produced by geoanalysis.\n"
-                "- For 'Where do optical and SAR disagree?': If the Evidence JSON does not contain exact mismatch coordinates or localized regions, respond: 'The current Evidence JSON does not contain sufficient spatial disagreement measurements to identify exact disagreement regions.' Do NOT invent locations.\n"
-                "- For 'Which is better, optical or SAR?': Respond: 'Neither modality is universally better. Based on the available evidence, [modality] provides stronger evidence for [specific task/feature], while the other provides [supported complementary evidence].' If evidence is insufficient, write: 'The available evidence is insufficient to determine which modality is stronger for this scene.'\n"
-                "- If evidence is insufficient for any claim, explicitly say: 'The available evidence is insufficient to determine this reliably.'\n\n"
+                "- For 'Compare the optical and SAR images': Give a direct evidence-based comparison following the structure above.\n"
+                "- For 'How does SAR complement optical imagery?': Mention ONLY the additional SAR characteristics actually present in Evidence JSON.\n"
+                "- For 'What additional information does SAR provide?': Mention ONLY actual SAR measurements (e.g. backscatter dB, structural response) from Evidence JSON.\n"
+                "- For 'Where do optical and SAR disagree?': If spatial correspondence is null/missing, respond: 'The available evidence is insufficient to determine this reliably.'\n"
+                "- For 'Which is better, optical or SAR?': State that neither is universally better, and identify which modality provides stronger evidence for the requested feature based only on Evidence JSON.\n\n"
                 f"User Query: {query}\n\n"
                 f"Evidence JSON:\n{json.dumps(evidence.model_dump(), indent=2)}\n\n"
                 "Return: The exact 5-part evidence-grounded answer."
@@ -211,71 +216,88 @@ def _fallback_reasoning(evidence: EvidenceModel, query: str = "") -> str:
 
     # 3. OPTICAL / SAR FUSION
     elif "fusion" in task_value or "sar" in task_value or evidence.fusion_evidence is not None or evidence.sar is not None:
-        fe = evidence.fusion_evidence or {}
         opt = evidence.optical or {}
         sar = evidence.sar or {}
         fus = evidence.fusion or {}
+        corr = evidence.correspondence or {}
 
-        opt_m = opt.get("metrics", {})
-        sar_m = sar.get("metrics", {})
-        fus_ov = fus.get("overlap", {})
+        opt_raw = opt.get("raw_indicators", {})
+        opt_val = opt.get("validated_results", {})
+        sar_raw = sar.get("raw_indicators", {})
+        sar_val = sar.get("validated_results", {})
 
-        opt_w = opt_m.get("water_pct", m.get("optical_water_pct", m.get("water_pct", 0.0)))
-        opt_v = opt_m.get("vegetation_pct", m.get("optical_vegetation_pct", m.get("vegetation_pct", 0.0)))
-        opt_b = opt_m.get("builtup_pct", m.get("optical_builtup_pct", m.get("builtup_pct", 0.0)))
+        opt_cand_w = opt_raw.get("ndwi_water_candidate_pct", m.get("ndwi_water_candidate_pct", 0.0))
+        opt_val_w = opt_val.get("water_coverage_pct", m.get("validated_water_coverage_pct", 0.0))
+        opt_veg = opt_val.get("vegetation_coverage_pct", opt_raw.get("vegetation_pct", m.get("vegetation_pct", 0.0)))
+        opt_built = opt_val.get("built_up_coverage_pct", opt_raw.get("built_up_pct", m.get("builtup_pct", 0.0)))
 
-        sar_w = sar_m.get("water_pct", m.get("sar_water_pct", m.get("water_pct", 0.0)))
-        sar_b = sar_m.get("builtup_pct", m.get("sar_builtup_pct", m.get("builtup_pct", 0.0)))
-        sar_db = sar_m.get("mean_backscatter_db", m.get("sar_mean_db"))
+        sar_cand_w = sar_raw.get("water_candidate_pct", m.get("sar_water_candidate_pct", 0.0))
+        sar_val_w = sar_val.get("water_coverage_pct", m.get("sar_validated_water_pct", sar_cand_w))
+        sar_str = sar_val.get("structural_coverage_pct", sar_raw.get("structural_response_pct", m.get("sar_structural_response_pct", 0.0)))
+        sar_db = sar_raw.get("mean_backscatter_db", m.get("sar_mean_db"))
         sar_db_str = f" with mean radar backscatter of {sar_db} dB" if sar_db is not None else ""
 
-        w_agree = fus_ov.get("water_agreement_pct", m.get("water_agreement_pct", m.get("water_pct", 0.0)))
-        b_agree = fus_ov.get("builtup_agreement_pct", m.get("builtup_agreement_pct", m.get("builtup_pct", 0.0)))
-        disagree_pct = fus.get("disagreement_pct", m.get("disagreement_pct", 0.0))
+        w_agree = corr.get("water_agreement_pct", m.get("water_agreement_pct", 0.0))
+        b_agree = corr.get("built_up_agreement_pct", m.get("built_up_agreement_pct", 0.0))
+        spatial_agree = corr.get("spatial_agreement_pct")
 
-        agr_pct = fus.get("agreement_pct", m.get("agreement_score_pct"))
-        if agr_pct is None:
-            agr_val = m.get("agreement_score") or m.get("cross_modal_agreement_score") or m.get("fusion_agreement_score")
-            agr_pct = round(float(agr_val) * 100, 1) if agr_val is not None else conf_percent
-        else:
-            agr_pct = round(float(agr_pct), 1)
+        integ_score = fus.get("integration_score", m.get("fusion_integration_score", 40.0))
+        score_type = fus.get("score_type", "integration_score")
 
         # 1. OPTICAL OBSERVATION
-        if opt_v > 0 or opt_w > 0 or opt_b > 0:
-            optical_part = f"Optical:\nThe optical analysis identifies {opt_v:.1f}% vegetation cover, {opt_w:.1f}% water surfaces, and {opt_b:.1f}% built-up regions from spectral reflectance measurements."
-        else:
-            optical_part = "Optical:\nOptical evidence is limited to the available scene metrics."
+        optical_part = (
+            f"Optical: The validated optical analysis reports {opt_veg:.1f}% vegetation coverage, "
+            f"{opt_built:.1f}% built-up coverage, and {opt_val_w:.1f}% water coverage "
+            f"(with {opt_cand_w:.1f}% initial NDWI candidate pixels)."
+        )
 
         # 2. SAR OBSERVATION
-        if sar_w > 0 or sar_b > 0 or sar_db is not None:
-            sar_part = f"SAR:\nThe SAR analysis indicates {sar_w:.1f}% specular low-backscatter surfaces and {sar_b:.1f}% structural response{sar_db_str}."
-        else:
-            sar_part = "SAR:\nSAR-specific evidence is limited in the current analysis."
+        sar_part = (
+            f"SAR: The SAR analysis reports {sar_val_w:.1f}% water-like area and "
+            f"{sar_str:.1f}% structural response{sar_db_str}."
+        )
 
         # 3. COMPARISON (Query-specific)
         if "disagree" in q:
-            comparison_part = "Comparison:\nThe current Evidence JSON does not contain sufficient spatial disagreement measurements to identify exact disagreement regions."
+            if spatial_agree is not None:
+                comparison_part = f"Comparison: Spatial agreement is {spatial_agree}%, with water agreement at {w_agree:.1f}%."
+            else:
+                comparison_part = "Comparison: The available evidence is insufficient to determine this reliably."
         elif "which is better" in q or "better" in q:
-            comparison_part = f"Comparison:\nNeither modality is universally better. Based on the available evidence, optical provides stronger evidence for vegetation classification ({opt_v:.1f}%), while SAR provides structural and surface roughness measurements."
+            comparison_part = (
+                f"Comparison: Neither modality is universally better; optical provides stronger evidence for "
+                f"vegetation classification ({opt_veg:.1f}%), while SAR provides surface roughness and backscatter measurements."
+            )
         else:
-            comparison_part = f"Comparison:\nThe estimated optical-SAR agreement is {agr_pct}%, indicating partial correspondence between the available measurements with {w_agree:.1f}% water and {b_agree:.1f}% built-up agreement."
+            comparison_part = (
+                f"Comparison: Optical spectral analysis identifies surface reflectance classes, whereas "
+                f"SAR captures roughness and structural response."
+            )
 
         # 4. FUSION INSIGHT (Query-specific)
         if "complement" in q:
-            fusion_part = "Fusion insight:\nSAR complements optical imagery by providing independent radar backscatter and structural measurements alongside optical spectral reflectance."
+            fusion_part = (
+                f"Fusion insight: SAR complements optical imagery by providing independent radar backscatter "
+                f"and structural measurements ({sar_str:.1f}%) alongside optical spectral features."
+            )
         elif "additional" in q or "provide" in q:
-            fusion_part = "Fusion insight:\nSAR provides structural backscatter and surface roughness measurements that are distinct from optical reflectance bands."
+            fusion_part = (
+                f"Fusion insight: SAR provides structural response ({sar_str:.1f}%){sar_db_str}, "
+                f"which is independent of optical spectral reflectance."
+            )
         else:
-            fusion_part = "Fusion insight:\nCombining the two modalities provides both optical scene information and SAR-derived measurements, giving a broader representation of the analyzed area."
+            fusion_part = (
+                "Fusion insight: Combining the optical and SAR measurements provides independent "
+                "evidence for interpreting the same scene."
+            )
 
         # 5. AGREEMENT / CONFIDENCE
-        confidence_part = f"Agreement/Confidence:\n{agr_pct}%."
+        confidence_part = (
+            f"Agreement/Confidence: The reported fusion integration score is {integ_score}%; "
+            "this is an integration score, not a calibrated accuracy measure."
+        )
 
         return f"{optical_part}\n\n{sar_part}\n\n{comparison_part}\n\n{fusion_part}\n\n{confidence_part}"
-
-        if evidence.limitations:
-            ans += " " + " ".join(evidence.limitations)
-        return ans.strip()
 
     # 4. CAPTIONING / GENERAL
     elif "captioning" in task_value or "general" in task_value:

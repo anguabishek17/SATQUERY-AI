@@ -22,6 +22,7 @@ class EvidenceModel(BaseModel):
     # Modality-separated evidence blocks for cross-modal fusion
     optical: Optional[Dict[str, Any]] = None
     sar: Optional[Dict[str, Any]] = None
+    correspondence: Optional[Dict[str, Any]] = None
     fusion: Optional[Dict[str, Any]] = None
     
     confidence: float
