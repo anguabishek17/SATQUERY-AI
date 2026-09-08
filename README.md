@@ -56,21 +56,6 @@ USER QUERY
 
 ---
 
-## ⚡ Low-Latency Real-Time Performance
-
-To enable instant live demonstrations, SatQuery AI incorporates multi-tier caching and algorithmic optimizations that reduce query latency from **60–90 seconds down to 2–4 seconds**:
-
-1. **Two-Tier In-Memory Cache (`AnalysisCache`)**:
-   - **Image Preprocessing Cache**: Stores decoded BGR, RGB, HSV, Grayscale arrays, and spatial metadata upon image ingestion. Per-query preprocessing dropped from $\sim 150\,\text{ms}$ to **$< 1\,\text{ms}$**.
-   - **Task Result Cache**: Stores computed land-cover distributions, spectral masks, and detected vector footprints per image ID. Follow-up analytical questions return in **$< 10\,\text{ms}$** at the GeoAnalysis stage.
-2. **Strict Task-Specific Tool Execution**:
-   - Non-building queries (`water`, `river`, `vegetation`, `built-up land cover`, `scene summary`) are completely decoupled from YOLOv8-seg and DeepLabV3+ overhead.
-3. **Local-ROI Road Suppression Engine**:
-   - Replaced full-canvas morphological operations with cropped local ROIs ($30\times30$ to $80\times80\,\text{px}$) and a **Cheap-First Feature Cascade** (Elongation $\rightarrow$ Width Consistency $\rightarrow$ ROI Skeletonization $\rightarrow$ Edge Density).
-   - **Road Suppression Latency on $1333\times1333$ Imagery**: Reduced from **$34.48\,\text{seconds}$** to **$150\,\text{milliseconds}$** (**$228\times$ speedup**).
-4. **Spatial Partitioning Without Re-Inference**:
-   - Dual-region spatial comparisons (*"Where are buildings concentrated?"*) retrieve detected bounding boxes once and partition them mathematically across hemispheres rather than running neural inference twice.
-
 ### 📊 Benchmark Comparison ($1333\times1333$ Satellite Image)
 | Pipeline Stage | Previous Latency | Optimized Latency | Speedup |
 | :--- | :---: | :---: | :---: |
