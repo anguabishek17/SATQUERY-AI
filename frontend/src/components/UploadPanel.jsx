@@ -132,21 +132,21 @@ export default function UploadPanel({ onImagesReady }) {
   }
 
   return (
-    <div className="rounded border border-border bg-surface2 p-4">
-      <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-ink-dim">
+    <div className="rounded-xl border border-slate-800 bg-[#0B0F19]/80 p-3">
+      <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-400">
         Input configuration
       </h3>
 
-      <div className="mb-4 flex gap-1.5">
+      <div className="mb-2.5 flex flex-wrap gap-1.5">
         {CONFIGS.map((c) => (
           <button
             key={c.id}
             type="button"
             onClick={() => switchConfig(c.id)}
-            className={`rounded px-2.5 py-1.5 text-xs transition-colors ${
+            className={`rounded-lg px-2 py-1 text-[11px] transition-colors ${
               configId === c.id
-                ? 'bg-teal/15 text-teal border border-teal/40'
-                : 'border border-border text-ink-dim hover:text-ink'
+                ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/40'
+                : 'border border-slate-700/60 text-slate-400 hover:text-slate-200'
             }`}
           >
             {c.label}
@@ -155,7 +155,7 @@ export default function UploadPanel({ onImagesReady }) {
       </div>
 
       <div
-        className="grid gap-3"
+        className="grid gap-2"
         style={{
           gridTemplateColumns: `repeat(${config.slots.length}, minmax(0, 1fr))`,
         }}
@@ -166,19 +166,19 @@ export default function UploadPanel({ onImagesReady }) {
           return (
             <div
               key={slot.key}
-              className="rounded border border-dashed border-border p-3"
+              className="rounded-lg border border-dashed border-slate-700/70 p-2.5 bg-[#131927]/60"
             >
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs text-ink-dim">
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-[11px] text-slate-300 font-medium">
                   {slot.label}
                 </span>
 
-                <span className="font-mono text-[10px] uppercase text-coral">
+                <span className="font-mono text-[9px] uppercase px-1 rounded bg-indigo-950/70 text-indigo-300 border border-indigo-800/40">
                   {slot.modality}
                 </span>
               </div>
 
-              <label className="block cursor-pointer rounded border border-border bg-surface px-3 py-6 text-center text-xs text-ink-dim hover:border-teal/50 hover:text-teal">
+              <label className="block cursor-pointer rounded-lg border border-slate-700/80 bg-[#0B0F19] px-2 py-3 text-center text-xs text-slate-400 hover:border-indigo-500/60 hover:text-indigo-300 transition-colors">
                 {filled
                   ? `✓ ${slotData[slot.key].filename}`
                   : 'Drop GeoTIFF / TIFF'}

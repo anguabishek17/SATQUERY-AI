@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import UploadPanel from '../components/UploadPanel'
 import SatelliteMapWorkspace from '../components/SatelliteMapWorkspace'
 import OpticalSarWorkspace from '../components/OpticalSarWorkspace'
@@ -25,6 +25,11 @@ export default function Dashboard() {
   const [searchBusy, setSearchBusy] = useState(false)
   const [searchedCoords, setSearchedCoords] = useState(null)
 
+  const [showUploadConfig, setShowUploadConfig] = useState(!uploadedImages?.length)
+  const messagesEndRef = useRef(null)
+  const messagesContainerRef = useRef(null)
+  const [userScrolledUp, setUserScrolledUp] = useState(false)
+
   const [messages, setMessages] = useState([
     {
       sender: 'assistant',
@@ -32,6 +37,30 @@ export default function Dashboard() {
       text: 'SatQuery AI Mission Console initialized. Search location, draw an AOI on the satellite map, or upload custom imagery for single-image, cross-modal, or bi-temporal analysis.',
     },
   ])
+
+  function scrollToBottom(smooth = true) {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' })
+      setUserScrolledUp(false)
+    }
+  }
+
+  function handleScroll() {
+    const el = messagesContainerRef.current
+    if (!el) return
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    setUserScrolledUp(distanceFromBottom > 80)
+  }
+
+  useEffect(() => {
+    if (!messages.length) return
+    const lastMsg = messages[messages.length - 1]
+    if (lastMsg.sender === 'user') {
+      scrollToBottom(true)
+    } else if (!userScrolledUp) {
+      scrollToBottom(true)
+    }
+  }, [messages])
 
   // Active layers state for right sidebar
   const [activeLayers, setActiveLayers] = useState({
@@ -283,112 +312,249 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Main 3-Column Mission Console Grid (Matching 2nd Reference Picture) */}
-      <main className="flex-1 grid grid-cols-1 lg:grid-cols-[340px_1fr_300px] gap-4 p-4 max-w-[1920px] mx-auto w-full">
-        {/* Left Column: Conversation Panel with Embedded Input Configuration & Chat */}
-        <div className="flex flex-col gap-3 rounded-2xl border border-[#1E293B] bg-[#131927] p-4 shadow-xl h-[calc(100vh-85px)]">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-              <span>💬</span> Conversation
-            </h2>
-            <button
-              onClick={resetSession}
-              className="rounded-lg bg-indigo-600/15 text-indigo-400 border border-indigo-500/30 px-2.5 py-1 text-xs font-medium hover:bg-indigo-600/25 transition-colors flex items-center gap-1"
-            >
-              ➕ New Chat
-            </button>
-          </div>
+      {/* Main 3-Column Mission Console Grid (Matching Reference Layout) */}
+      <main className="flex-1 grid grid-cols-1 lg:grid-cols-[360px_1fr_300px] xl:grid-cols-[390px_1fr_320px] gap-4 p-4 max-w-[1920px] mx-auto w-full min-h-0 lg:h-[calc(100vh-70px)]">
+        {/* Left Column: Conversation Panel (Clean, Modern Chatbot Layout) */}
+        <div className="flex flex-col h-[650px] lg:h-full min-h-0 rounded-2xl border border-[#1E293B] bg-[#131927] p-4 shadow-xl overflow-hidden">
+          {/* 1. CONVERSATION HEADER */}
+          <div className="flex-shrink-0 border-b border-slate-800 pb-3 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-base">💬</span>
+                <h2 className="text-sm font-semibold text-white">Conversation</h2>
+                <span className="rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 text-[10px] font-mono">
+                  {messages.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowUploadConfig(!showUploadConfig)}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-medium border transition-colors flex items-center gap-1 ${
+                    showUploadConfig
+                      ? 'bg-indigo-600/30 text-indigo-300 border-indigo-500/50'
+                      : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700'
+                  }`}
+                  title="Toggle Imagery Upload Configuration"
+                >
+                  <span>📁</span>
+                  <span>{uploadedImages?.length ? `${uploadedImages.length} Image(s)` : 'Imagery'}</span>
+                  <span className="text-[9px] text-slate-400">{showUploadConfig ? '▲' : '▼'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={resetSession}
+                  className="rounded-lg bg-indigo-600/15 text-indigo-400 border border-indigo-500/30 px-2.5 py-1 text-xs font-medium hover:bg-indigo-600/25 transition-colors flex items-center gap-1"
+                  title="Start a fresh conversation"
+                >
+                  ➕ New Chat
+                </button>
+              </div>
+            </div>
 
-          {/* Image Input Configuration Panel (Embedded at top of Conversation) */}
-          <div className="border-b border-slate-800 pb-3">
-            <UploadPanel
-              onImagesReady={(imgs) => {
-                setUploadedImages(imgs)
-                if (imgs && imgs.length > 0) {
-                  setMapCapturedImages(null)
-                }
-                setAoiBbox(null)
-              }}
-            />
-          </div>
+            {/* Collapsible Upload Panel to preserve maximum chat height */}
+            {showUploadConfig && (
+              <div className="pt-2 border-t border-slate-800/60 max-h-[260px] overflow-y-auto custom-scrollbar">
+                <UploadPanel
+                  onImagesReady={(imgs) => {
+                    setUploadedImages(imgs)
+                    if (imgs && imgs.length > 0) {
+                      setMapCapturedImages(null)
+                      setShowUploadConfig(false)
+                    }
+                    setAoiBbox(null)
+                  }}
+                />
+              </div>
+            )}
 
-          {/* Messages Scroll Area */}
-          <div className="flex-1 overflow-y-auto space-y-3.5 pr-1 font-sans text-xs custom-scrollbar">
-            {messages.map((msg, i) => (
-              <div
-                key={i}
-                className={`flex flex-col gap-1 ${
-                  msg.sender === 'user' ? 'items-end' : 'items-start'
-                }`}
-              >
-                <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
-                  <span>{msg.sender === 'user' ? 'You' : 'SatQuery AI'}</span>
-                  <span>•</span>
-                  <span>{msg.time}</span>
+            {/* Compact chip when imagery is active and upload panel is collapsed */}
+            {!showUploadConfig && activeImages?.length > 0 && (
+              <div className="flex items-center justify-between bg-[#0B0F19] rounded-lg px-2.5 py-1 border border-slate-800 text-[11px] font-mono text-slate-400">
+                <div className="flex items-center gap-1.5 truncate">
+                  <span className="text-emerald-400 text-xs">●</span>
+                  <span className="text-slate-200 truncate">
+                    {activeImages[0].filename || 'Active Scene'}
+                    {activeImages.length > 1 ? ` (+${activeImages.length - 1})` : ''}
+                  </span>
+                  <span className="text-[10px] text-indigo-400 bg-indigo-950/60 px-1 rounded border border-indigo-800/40 uppercase">
+                    {isCrossModal ? 'FUSION' : isBiTemporal ? 'BI-TEMP' : activeImages[0].modality || 'OPTICAL'}
+                  </span>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setShowUploadConfig(true)}
+                  className="text-indigo-400 hover:text-indigo-300 text-[10px] ml-2 flex-shrink-0 underline"
+                >
+                  Change
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 2. SCROLLABLE MESSAGE AREA (Only container that scrolls) */}
+          <div
+            ref={messagesContainerRef}
+            onScroll={handleScroll}
+            className="flex-1 min-h-0 overflow-y-auto pr-1 py-3 space-y-3.5 font-sans text-xs custom-scrollbar relative"
+          >
+            {messages.map((msg, i) => {
+              const isUser = msg.sender === 'user'
+              return (
                 <div
-                  className={`rounded-2xl px-4 py-3 max-w-[92%] leading-relaxed ${
-                    msg.sender === 'user'
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
-                      : 'bg-[#1E293B] text-slate-200 border border-slate-700/80 shadow'
+                  key={i}
+                  className={`flex flex-col gap-1.5 w-full ${
+                    isUser ? 'items-end' : 'items-start'
                   }`}
                 >
-                  <p className="whitespace-pre-line">{msg.text}</p>
+                  <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono px-1">
+                    <span className="font-semibold text-slate-300">
+                      {isUser ? '👤 You' : '🛰️ SatQuery AI'}
+                    </span>
+                    <span>•</span>
+                    <span>{msg.time}</span>
+                    {msg.task && (
+                      <span className="ml-1 text-[9px] font-mono px-1.5 py-0.5 bg-slate-800/90 text-indigo-400 rounded border border-slate-700/60">
+                        {msg.task.replace(/_/g, ' ')}
+                      </span>
+                    )}
+                  </div>
 
-                  {/* Message Metadata Badges */}
-                  {msg.confidence !== undefined && (
-                    <div className="mt-2 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px] font-mono">
-                      <span className="text-slate-400">Confidence:</span>
-                      <strong className={msg.confidence > 0.6 ? 'text-emerald-400' : 'text-amber-400'}>
-                        {(msg.confidence * 100).toFixed(0)}%
-                      </strong>
+                  <div
+                    className={`rounded-2xl transition-all ${
+                      isUser
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 max-w-[88%]'
+                        : 'bg-[#182030] text-slate-100 border border-slate-700/60 shadow max-w-[96%]'
+                    }`}
+                    style={{
+                      padding: '13px 16px',
+                      lineHeight: '1.55',
+                      wordBreak: 'break-word',
+                      overflowWrap: 'anywhere',
+                    }}
+                  >
+                    {/* Natural paragraph wrapping */}
+                    <div className="whitespace-pre-line text-xs font-sans text-slate-100 leading-relaxed space-y-2">
+                      {msg.text}
                     </div>
-                  )}
 
-                  {msg.metrics?.building_count !== undefined && msg.metrics?.building_count !== null && (
-                    <div className="mt-1.5 bg-[#0B0F19]/60 rounded-lg p-2 text-[11px] font-mono space-y-1 border border-slate-700/40 text-slate-300">
-                      <div>🏢 Buildings: <strong className="text-indigo-400">{msg.metrics.building_count}</strong></div>
-                      <div>📐 AOI Area: <strong className="text-emerald-400">{msg.metrics.area_ha} ha ({msg.metrics.area_sq_km} km²)</strong></div>
-                      <div>📊 Density: <strong className="text-indigo-400">{msg.metrics.density_per_km2} / km²</strong></div>
-                    </div>
-                  )}
+                    {/* Metadata badges if present */}
+                    {msg.confidence !== undefined && (
+                      <div className="mt-2.5 pt-2 border-t border-slate-700/50 flex items-center justify-between text-[11px] font-mono">
+                        <span className="text-slate-400">Confidence:</span>
+                        <strong className={msg.confidence > 0.6 ? 'text-emerald-400' : 'text-amber-400'}>
+                          {(msg.confidence * 100).toFixed(0)}%
+                        </strong>
+                      </div>
+                    )}
+
+                    {msg.metrics?.building_count !== undefined && msg.metrics?.building_count !== null && (
+                      <div className="mt-2 bg-[#0B0F19]/70 rounded-xl p-2.5 text-[11px] font-mono space-y-1 border border-slate-700/50 text-slate-300">
+                        <div className="flex justify-between">
+                          <span>🏢 Buildings:</span>
+                          <strong className="text-indigo-400">{msg.metrics.building_count}</strong>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>📐 AOI Area:</span>
+                          <strong className="text-emerald-400">
+                            {msg.metrics.area_ha} ha ({msg.metrics.area_sq_km} km²)
+                          </strong>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>📊 Density:</span>
+                          <strong className="text-indigo-400">{msg.metrics.density_per_km2} / km²</strong>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
+              )
+            })}
+            <div ref={messagesEndRef} />
+
+            {/* Floating Jump to Latest Button */}
+            {userScrolledUp && (
+              <div className="sticky bottom-1 flex justify-center z-10 pointer-events-none">
+                <button
+                  type="button"
+                  onClick={() => scrollToBottom(true)}
+                  className="pointer-events-auto rounded-full bg-indigo-600/90 hover:bg-indigo-600 text-white text-[10px] font-medium py-1 px-3 shadow-lg border border-indigo-400/30 backdrop-blur-sm transition-all flex items-center gap-1 cursor-pointer"
+                >
+                  <span>↓</span>
+                  <span>Latest messages</span>
+                </button>
               </div>
-            ))}
+            )}
           </div>
 
-          {/* Chat Query Box Input */}
-          <div className="pt-2 border-t border-slate-800">
-            {error && <div className="mb-2 rounded-lg bg-rose-500/10 border border-rose-500/30 p-2 text-[11px] text-rose-400 font-mono">{error}</div>}
+          {/* 3. FIXED CHAT INPUT AREA (Fixed at bottom, never overlaps) */}
+          <div className="flex-shrink-0 pt-3 border-t border-slate-800 bg-[#131927]">
+            {error && (
+              <div className="mb-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 px-3 py-1.5 text-[11px] text-rose-400 font-mono flex items-start gap-1.5">
+                <span className="flex-shrink-0">⚠️</span>
+                <span className="flex-1 leading-snug">{error}</span>
+              </div>
+            )}
             <form
               onSubmit={(e) => {
                 e.preventDefault()
                 handleSubmit()
               }}
-              className="relative flex items-center"
+              className="flex items-center gap-2 w-full"
             >
-              <button
-                type="button"
-                onClick={toggleVoiceInput}
-                title="Speak your query"
-                aria-label="Voice input"
-                className={`absolute left-1.5 flex h-7 w-7 items-center justify-center rounded-lg transition-colors shadow ${isListening ? 'bg-rose-500/20 text-rose-500' : 'bg-[#1E293B] text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
-              >
-                {isListening ? '🔴' : '🎤'}
-              </button>
-              <input
-                type="text"
-                value={queryInput}
-                onChange={(e) => setQueryInput(e.target.value)}
-                placeholder="Ask anything about your satellite imagery..."
-                className="w-full rounded-xl border border-slate-700 bg-[#0B0F19] py-2.5 pl-10 pr-11 text-xs text-slate-100 placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none shadow-inner"
-              />
+              {/* Input Box with icons */}
+              <div className="flex-1 min-w-0 flex items-center gap-2 rounded-xl border border-slate-700/80 bg-[#0B0F19] px-3 py-2 text-xs focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500/30 transition-all shadow-inner">
+                <button
+                  type="button"
+                  onClick={toggleVoiceInput}
+                  title={isListening ? 'Stop listening' : 'Voice input (Speak query)'}
+                  aria-label="Voice input"
+                  className={`flex-shrink-0 flex h-6 w-6 items-center justify-center rounded-lg text-xs transition-colors ${
+                    isListening ? 'bg-rose-500/20 text-rose-400 animate-pulse' : 'text-slate-400 hover:text-indigo-400'
+                  }`}
+                >
+                  {isListening ? '🔴' : '🎤'}
+                </button>
+
+                <span className="text-slate-500 text-xs select-none flex-shrink-0">✨</span>
+
+                <input
+                  type="text"
+                  value={queryInput}
+                  onChange={(e) => setQueryInput(e.target.value)}
+                  placeholder="Ask anything about your satellite imagery..."
+                  className="flex-1 min-w-0 bg-transparent text-slate-100 placeholder:text-slate-500 focus:outline-none text-xs"
+                />
+
+                {queryInput && (
+                  <button
+                    type="button"
+                    onClick={() => setQueryInput('')}
+                    className="text-slate-500 hover:text-slate-300 text-xs px-1 flex-shrink-0"
+                    title="Clear query"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Submit Button (Separate flex sibling) */}
               <button
                 type="submit"
                 disabled={loading || !queryInput.trim()}
-                className="absolute right-1.5 flex h-7 w-auto px-3 items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 transition-colors shadow whitespace-nowrap"
+                className="flex-shrink-0 flex h-[38px] items-center justify-center gap-1.5 px-3.5 rounded-xl bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md shadow-indigo-600/20 whitespace-nowrap"
               >
-                {loading ? '⌛ Processing (~60s)' : '➔ Submit'}
+                {loading ? (
+                  <>
+                    <span className="animate-spin text-xs">⚙️</span>
+                    <span className="hidden sm:inline">Processing...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Submit</span>
+                    <span>➔</span>
+                  </>
+                )}
               </button>
             </form>
           </div>
