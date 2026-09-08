@@ -2,10 +2,13 @@
 .env
 .env.*
 !.env.example
+*.env
 
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
+.pytest_cache/
 .venv/
 venv/
 env/
@@ -14,6 +17,8 @@ backend/venv/
 # Node
 node_modules/
 dist/
+frontend/dist/
+.vite/
 
 # Runtime data & outputs
 backend/data/uploads/*
@@ -22,12 +27,16 @@ backend/data/temp/*
 backend/data/reports/*
 backend/data/adapters/*
 backend/data/audit.sqlite3
+backend/data/models/*
 !backend/data/.gitkeep
+!backend/data/**/.gitkeep
 
 # Temporary Test Output
 backend/*_output.json
 backend/*_results.json
+backend/final_regression_results.json
 backend/fusion_output*.txt
+backend/smoke_test_output.json
 
 # Model weights and Hugging Face cache
 *.bin
