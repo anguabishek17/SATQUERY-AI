@@ -488,10 +488,6 @@ export default function SatelliteMapWorkspace({
                 <span className="text-slate-400">Footprint Area:</span>
                 <strong className="text-white">{selectedBuilding.area.toFixed(1)} m²</strong>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Model Confidence:</span>
-                <strong className="text-emerald-400">{(selectedBuilding.conf * 100).toFixed(1)}%</strong>
-              </div>
               <div className="pt-2 text-[10px] text-slate-500 border-t border-slate-800">
                 Centroid: {selectedBuilding.bbox.map((v) => Math.round(v)).join(', ')}
               </div>

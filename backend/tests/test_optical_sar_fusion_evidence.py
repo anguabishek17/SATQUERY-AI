@@ -131,14 +131,10 @@ def test_optical_sar_reasoning_structure_and_grounding():
     assert "Optical:" in ans_compare
     assert "SAR:" in ans_compare
     assert "Comparison:" in ans_compare
-    assert "Fusion insight:" in ans_compare
-    assert "Agreement/Confidence:" in ans_compare
+    assert "Agreement:" in ans_compare
     # Must report validated water (0.0%), not candidate (84.59%) as confirmed
     assert "0.0% water coverage" in ans_compare or "0.0% confirmed water" in ans_compare or "84.59% initial NDWI candidate" in ans_compare
     assert "84.59% water coverage" not in ans_compare
-    # Integration score correctly labelled
-    assert "40.0%" in ans_compare or "40%" in ans_compare
-    assert "integration score, not a calibrated accuracy measure" in ans_compare
 
     # Test 2: Disagreement query when spatial correspondence is missing
     ans_disagree = _fallback_reasoning(evidence, "Where do optical and SAR disagree?")

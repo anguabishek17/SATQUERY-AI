@@ -214,10 +214,13 @@ export default function Dashboard() {
       setMessages((prev) => [...prev, aiMsg])
     } catch (e) {
       const errMsg = getErrorMessage(e)
-      setError(`Query execution failed: ${errMsg}`)
+      const userFriendlyErr = errMsg && errMsg.includes('Backend unavailable')
+        ? 'Backend service is temporarily unavailable. Please verify server connection.'
+        : 'Unable to complete this analysis with the available evidence.'
+      setError(userFriendlyErr)
       setMessages((prev) => [
         ...prev,
-        { sender: 'assistant', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), text: `❌ Error: ${errMsg}` },
+        { sender: 'assistant', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), text: userFriendlyErr },
       ])
     } finally {
       setLoading(false)
@@ -247,6 +250,45 @@ export default function Dashboard() {
     a.download = `satquery_report_${result.report_id || 'session'}.json`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  function renderFormattedResponse(text) {
+    if (!text) return null
+    const knownHeaders = [
+      'Change Summary:', 'Observed Change:', 'Affected Area:', 'Change Location:',
+      'Largest Change Region:', 'Estimated Changed Area:', 'Change Extent:',
+      'Land-Cover Change:', 'Development Change:', 'Spatial Concentration:',
+      'Spatial Distribution:', 'Future Prediction:', 'Recommended Action:',
+      'Optical:', 'SAR:', 'Comparison:', 'Fusion Insight:', 'Agreement:', 'Evidence:'
+    ]
+
+    const paragraphs = text.split(/\n\s*\n/)
+    return (
+      <div className="space-y-2.5">
+        {paragraphs.map((para, idx) => {
+          const trimmed = para.trim()
+          const matchedHeader = knownHeaders.find((h) => trimmed.startsWith(h))
+          if (matchedHeader) {
+            const body = trimmed.substring(matchedHeader.length).trim()
+            return (
+              <div key={idx} className="space-y-1">
+                <span className="font-semibold text-indigo-300 block text-[11px] uppercase tracking-wider font-mono">
+                  {matchedHeader.replace(':', '')}
+                </span>
+                <p className="text-slate-200 leading-relaxed font-sans text-xs">
+                  {body}
+                </p>
+              </div>
+            )
+          }
+          return (
+            <p key={idx} className="text-slate-200 leading-relaxed font-sans text-xs">
+              {trimmed}
+            </p>
+          )
+        })}
+      </div>
+    )
   }
 
   return (
@@ -433,20 +475,16 @@ export default function Dashboard() {
                       overflowWrap: 'anywhere',
                     }}
                   >
-                    {/* Natural paragraph wrapping */}
-                    <div className="whitespace-pre-line text-xs font-sans text-slate-100 leading-relaxed space-y-2">
-                      {msg.text}
-                    </div>
-
-                    {/* Metadata badges if present — hide confidence for bi-temporal per requirement 14 */}
-                    {msg.confidence !== undefined && msg.task !== 'change_vqa' && msg.task !== 'change_description' && msg.task !== 'change_detection' && (
-                      <div className="mt-2.5 pt-2 border-t border-slate-700/50 flex items-center justify-between text-[11px] font-mono">
-                        <span className="text-slate-400">Confidence:</span>
-                        <strong className={msg.confidence > 0.6 ? 'text-emerald-400' : 'text-amber-400'}>
-                          {(msg.confidence * 100).toFixed(0)}%
-                        </strong>
+                    {/* Structured readable response */}
+                    {isUser ? (
+                      <div className="whitespace-pre-line text-xs font-sans text-white leading-relaxed">
+                        {msg.text}
                       </div>
+                    ) : (
+                      renderFormattedResponse(msg.text)
                     )}
+
+
 
                     {msg.metrics?.building_count !== undefined && msg.metrics?.building_count !== null && (
                       <div className="mt-2 bg-[#0B0F19]/70 rounded-xl p-2.5 text-[11px] font-mono space-y-1 border border-slate-700/50 text-slate-300">
@@ -666,9 +704,13 @@ export default function Dashboard() {
               </span>
             </div>
 
-            <p className="text-xs text-slate-300 leading-relaxed font-sans whitespace-pre-line">
-              {result?.answer || 'Execute a satellite query above to generate remote-sensing insights and physical metric breakdown.'}
-            </p>
+            {result?.answer ? (
+              renderFormattedResponse(result.answer)
+            ) : (
+              <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                Execute a satellite query above to generate remote-sensing insights and physical metric breakdown.
+              </p>
+            )}
           </div>
         </div>
 
@@ -747,17 +789,35 @@ export default function Dashboard() {
               {/* Step-by-step Honest Execution Checklist */}
               <div className="space-y-2.5 text-xs text-slate-300 font-sans">
                 {result?.execution_trace && result.execution_trace.length > 0 ? (
-                  result.execution_trace.map((t, i) => (
-                    <div key={i} className="flex items-start gap-2">
-                      <span className="text-emerald-400 mt-0.5 font-bold">✓</span>
-                      <div className="flex flex-col">
-                        <span className="font-medium text-slate-200 capitalize">
-                          {t.step ? t.step.replace(/_/g, ' ') : 'Step'}
-                        </span>
-                        <span className="text-[10px] text-slate-400">{t.detail}</span>
-                      </div>
-                    </div>
-                  ))
+                  result.execution_trace
+                    .filter((t) => t.step !== 'performance_metrics' && t.step !== 'context_resolution')
+                    .map((t, i) => {
+                      const stepTitles = {
+                        sensor_intelligence: 'Sensor Intelligence',
+                        input_validation: 'Input Validation',
+                        task_classification: 'Task Classification',
+                        tool_selection: 'Tool Selection',
+                        tool_execution: isBiTemporal ? 'Temporal Change Detection' : isCrossModal ? 'Cross-Modal GeoAnalysis' : 'Specialist GeoAnalysis',
+                        evidence_json: 'Evidence Extraction',
+                        ai_reasoning: 'AI Reasoning',
+                        evidence_validation: 'Evidence Validation',
+                        final_response: 'Final Response',
+                        aoi_selection: 'AOI Selection',
+                        compound_query_decomposition: 'Query Decomposition',
+                      }
+                      const title = stepTitles[t.step] || (t.step ? t.step.replace(/_/g, ' ') : 'Step')
+                      return (
+                        <div key={i} className="flex items-start gap-2">
+                          <span className="text-emerald-400 mt-0.5 font-bold">✓</span>
+                          <div className="flex flex-col">
+                            <span className="font-medium text-slate-200 capitalize">
+                              {title}
+                            </span>
+                            <span className="text-[10px] text-slate-400">{t.detail}</span>
+                          </div>
+                        </div>
+                      )
+                    })
                 ) : (
                   <div className="flex flex-col gap-2 text-slate-500 p-2">
                     {loading ? (

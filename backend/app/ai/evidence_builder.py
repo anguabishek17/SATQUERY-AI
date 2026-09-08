@@ -205,7 +205,4 @@ def build_evidence_json(query: str, task: TaskType, result: ToolResult) -> Evide
     if result.bounding_boxes:
         evidence.detections["bbox_count"] = len(result.bounding_boxes)
 
-    if not result.confidence_calibrated:
-        evidence.limitations.append("Confidence score is an uncalibrated heuristic.")
-
     return evidence

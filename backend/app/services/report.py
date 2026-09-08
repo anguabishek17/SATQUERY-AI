@@ -65,8 +65,7 @@ def build_pdf_report(report_id: str, query: str, answer: str, confidence: float,
     pdf.set_font("DejaVu", "", 11)
     _mc(pdf, 7, f"Report ID: {report_id}")
     _mc(pdf, 7, f"Query: {query}")
-    _mc(pdf, 7, f"Confidence: {confidence:.2f}")
-    _mc(pdf, 7, f"Tools used: {', '.join(tools_used)}")
+    _mc(pdf, 7, f"Analysis Modules: {', '.join(tools_used)}")
 
     pdf.ln(4)
     pdf.set_font("DejaVu", "B", 12)
@@ -76,10 +75,11 @@ def build_pdf_report(report_id: str, query: str, answer: str, confidence: float,
 
     pdf.ln(4)
     pdf.set_font("DejaVu", "B", 12)
-    pdf.cell(0, 8, "Execution trace", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 8, "Operational Execution Trace", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font("DejaVu", "", 10)
     for step in execution_trace:
-        _mc(pdf, 6, f"- {step['step']}: {step['detail']}")
+        step_name = step.get('step', '').replace('_', ' ').title()
+        _mc(pdf, 6, f"- {step_name}: {step.get('detail', '')}")
 
     out_path = REPORT_DIR / f"{report_id}.pdf"
     pdf.output(str(out_path))

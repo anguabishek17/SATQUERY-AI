@@ -1,4 +1,3 @@
-import ConfidenceBadge from './ConfidenceBadge'
 import ExecutionTrace from './ExecutionTrace'
 import SatQueryChain from './SatQueryChain'
 import ChangeStats from './ChangeStats'
@@ -8,7 +7,7 @@ export default function ResultsPanel({ result }) {
   if (!result) {
     return (
       <div className="rounded border border-dashed border-border p-8 text-center text-sm text-ink-dim">
-        Run a query to see the agent's answer, confidence, and execution trace here.
+        Run a query to see the agent's analysis, findings, and execution trace here.
       </div>
     )
   }
@@ -18,13 +17,6 @@ export default function ResultsPanel({ result }) {
       <div className="rounded border border-border bg-surface2 p-4">
         <div className="mb-2 flex items-center justify-between">
           <span className="font-mono text-[11px] uppercase tracking-wide text-coral">{result.task.replace(/_/g, ' ')}</span>
-          {!['change_vqa', 'change_description', 'change_detection'].includes(result.task) && (
-            <ConfidenceBadge
-              confidence={result.confidence}
-              lowConfidence={result.low_confidence}
-              confidenceCalibrated={result.confidence_calibrated}
-            />
-          )}
         </div>
         <p className="text-sm leading-relaxed text-ink whitespace-pre-line">{result.answer}</p>
 

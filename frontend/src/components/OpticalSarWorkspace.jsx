@@ -86,12 +86,7 @@ export default function OpticalSarWorkspace({
           )}
         </div>
 
-        {fusionScore !== undefined && (
-          <div className="font-mono text-[11px] text-ink-dim">
-            Optical/SAR Agreement:{' '}
-            <strong className="text-teal font-semibold">{(fusionScore * 100).toFixed(1)}%</strong>
-          </div>
-        )}
+
       </div>
 
       {activeTab === 'dual' ? (

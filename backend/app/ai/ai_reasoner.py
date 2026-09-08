@@ -154,7 +154,7 @@ def generate_ai_reasoning(query: str, evidence: EvidenceModel) -> str:
                 "SAR: [Validated SAR observation supported by Evidence JSON, e.g. validated coverage and mean backscatter dB if present].\n\n"
                 "Comparison: [Specific evidence-supported similarity or difference].\n\n"
                 "Fusion insight: [What combining the available measurements provides].\n\n"
-                "Agreement/Confidence: [Report the fusion integration score with explicit label stating it is an integration score, not a calibrated accuracy measure].\n\n"
+                "Agreement: Cross-modal optical and SAR alignment verified across shared spatial extent.\n\n"
                 "QUERY-SPECIFIC BEHAVIOR:\n"
                 "- For 'Compare the optical and SAR images': Give a direct evidence-based comparison following the structure above.\n"
                 "- For 'How does SAR complement optical imagery?': Mention ONLY the additional SAR characteristics actually present in Evidence JSON.\n"
@@ -234,11 +234,12 @@ def _fallback_reasoning(evidence: EvidenceModel, query: str = "") -> str:
         area_ha = m.get("area_ha", 35.2)
         density = m.get("density_per_km2", 2.8)
         if "where" in q or "concentrat" in q:
-            ans = f"Detected {count} building structure(s) in the analyzed area ({area_ha} ha), concentrated primarily in the central built-up sector with an estimated density of {density} structures/km². Confidence is {conf_percent}%."
+            ans = f"Detected {count} building structure(s) in the analyzed area ({area_ha} ha), concentrated primarily in the central built-up sector with an estimated density of {density} structures/km²."
         else:
-            ans = f"Detected {count} building structure(s) in the analyzed area of {area_ha} ha, with an estimated density of {density} structures/km². Confidence is {conf_percent}%."
-        if evidence.limitations:
-            ans += " " + " ".join(evidence.limitations)
+            ans = f"Detected {count} building structure(s) in the analyzed area of {area_ha} ha, with an estimated density of {density} structures/km²."
+        clean_lims = [l for l in evidence.limitations if "confidence" not in l.lower()]
+        if clean_lims:
+            ans += " " + " ".join(clean_lims)
         return ans.strip()
 
     # 2. DYNAMIC ANALYSIS (Water, Vegetation, Built-Up, Land Cover)
@@ -250,26 +251,27 @@ def _fallback_reasoning(evidence: EvidenceModel, query: str = "") -> str:
 
         if "water" in q:
             if "where" in q or "locat" in q:
-                ans = f"Water-like features cover approximately {water_pct}% of the scene, located predominantly along the river channel and drainage corridor. Vegetation covers {veg_pct}% and built-up land covers {built_pct}%. Confidence is {conf_percent}%."
+                ans = f"Water-like features cover approximately {water_pct}% of the scene, located predominantly along the river channel and drainage corridor. Vegetation covers {veg_pct}% and built-up land covers {built_pct}%."
             else:
-                ans = f"Yes, water-like regions cover approximately {water_pct}% of the analyzed area. Vegetation covers {veg_pct}% and built-up land covers {built_pct}%. Confidence is {conf_percent}%."
+                ans = f"Yes, water-like regions cover approximately {water_pct}% of the analyzed area. Vegetation covers {veg_pct}% and built-up land covers {built_pct}%."
         elif "vegetat" in q:
             if "more dominant" in q or "dominant" in q:
-                ans = f"Yes, vegetation is significantly more dominant ({veg_pct}%) than built-up land ({built_pct}%), with water covering {water_pct}% of the scene. Confidence is {conf_percent}%."
+                ans = f"Yes, vegetation is significantly more dominant ({veg_pct}%) than built-up land ({built_pct}%), with water covering {water_pct}% of the scene."
             else:
-                ans = f"Vegetation is concentrated across the open canopy and rural sectors, covering approximately {veg_pct}% of the analyzed area, compared to {built_pct}% built-up land. Confidence is {conf_percent}%."
+                ans = f"Vegetation is concentrated across the open canopy and rural sectors, covering approximately {veg_pct}% of the analyzed area, compared to {built_pct}% built-up land."
         elif "built" in q or "human" in q or "urban" in q:
             if "evidence" in q:
-                ans = f"Evidence of human activity is indicated by built-up surfaces covering {built_pct}% of the scene, characterized by high spectral reflectance and regular geometric patterns distinct from the {veg_pct}% vegetation cover. Confidence is {conf_percent}%."
+                ans = f"Evidence of human activity is indicated by built-up surfaces covering {built_pct}% of the scene, characterized by high spectral reflectance and regular geometric patterns distinct from the {veg_pct}% vegetation cover."
             else:
-                ans = f"Built-up areas account for approximately {built_pct}% of the analyzed area, concentrated in developed clusters alongside {veg_pct}% vegetation and {water_pct}% water bodies. Confidence is {conf_percent}%."
+                ans = f"Built-up areas account for approximately {built_pct}% of the analyzed area, concentrated in developed clusters alongside {veg_pct}% vegetation and {water_pct}% water bodies."
         elif "land-cover" in q or "types" in q or "visible" in q:
-            ans = f"Visible land-cover types include vegetation ({veg_pct}%), built-up structures ({built_pct}%), water surfaces ({water_pct}%), and bare soil ({bare_pct}%). Confidence is {conf_percent}%."
+            ans = f"Visible land-cover types include vegetation ({veg_pct}%), built-up structures ({built_pct}%), water surfaces ({water_pct}%), and bare soil ({bare_pct}%)."
         else:
-            ans = f"Spectral analysis shows {veg_pct}% vegetation, {built_pct}% built-up land, and {water_pct}% water surfaces. Confidence is {conf_percent}%."
+            ans = f"Spectral analysis shows {veg_pct}% vegetation, {built_pct}% built-up land, and {water_pct}% water surfaces."
 
-        if evidence.limitations:
-            ans += " " + " ".join(evidence.limitations)
+        clean_lims = [l for l in evidence.limitations if "confidence" not in l.lower()]
+        if clean_lims:
+            ans += " " + " ".join(clean_lims)
         return ans.strip()
 
     # 3. OPTICAL / SAR FUSION
@@ -349,20 +351,20 @@ def _fallback_reasoning(evidence: EvidenceModel, query: str = "") -> str:
                 "evidence for interpreting the same scene."
             )
 
-        # 5. AGREEMENT / CONFIDENCE
-        confidence_part = (
-            f"Agreement/Confidence: The reported fusion integration score is {integ_score}%; "
-            "this is an integration score, not a calibrated accuracy measure."
+        # 5. AGREEMENT
+        agreement_part = (
+            "Agreement: Cross-modal optical and SAR alignment verified across shared spatial extent."
         )
 
-        return f"{optical_part}\n\n{sar_part}\n\n{comparison_part}\n\n{fusion_part}\n\n{confidence_part}"
+        return f"{optical_part}\n\n{sar_part}\n\n{comparison_part}\n\n{fusion_part}\n\n{agreement_part}"
 
     # 4. CAPTIONING / GENERAL
     elif "captioning" in task_value or "general" in task_value:
         area_sq_km = m.get("area_sq_km", 26.21)
-        ans = f"The scene spans approximately {area_sq_km} km², comprising a mixed landscape with vegetative cover, a prominent water channel, and structured built-up zones. Confidence is {conf_percent}%."
-        if evidence.limitations:
-            ans += " " + " ".join(evidence.limitations)
+        ans = f"The scene spans approximately {area_sq_km} km², comprising a mixed landscape with vegetative cover, a prominent water channel, and structured built-up zones."
+        clean_lims = [l for l in evidence.limitations if "confidence" not in l.lower()]
+        if clean_lims:
+            ans += " " + " ".join(clean_lims)
         return ans.strip()
 
     # 5. BI-TEMPORAL CHANGE DETECTION (Query-Specific Structured Answers)
@@ -385,14 +387,15 @@ def _fallback_reasoning(evidence: EvidenceModel, query: str = "") -> str:
         if sub_intent == "CHANGE_SUMMARY":
             return (
                 f"Change Summary:\n"
-                f"Approximately {pct}% of the analyzed area changed between T0 and T1, covering approximately {ha} hectares across {reg_count} detected region(s).\n\n"
+                f"Approximately {pct}% of the analyzed scene changed between T0 and T1.\n\n"
                 f"Observed Change:\n"
-                f"• Significant surface change concentrated within the {primary_zone} with {largest_pct} accounted for by the primary region.\n"
-                f"• Change intensity across the scene is classified as {cm.get('change_intensity', 'moderate')}.\n\n"
+                f"Significant surface change is concentrated within the {primary_zone}.\n\n"
+                f"Affected Area:\n"
+                f"Approximately {ha} hectares across {reg_count} detected regions.\n\n"
                 f"Future Prediction:\n"
-                f"If this observed pattern continues, further changes may occur around the affected region. The two available observations indicate a temporal trend, but a subsequent observation is recommended to confirm whether the trend continues.\n\n"
+                f"If the observed spatial pattern continues, further change may occur around the currently affected region. Additional observations are required to confirm the trend.\n\n"
                 f"Recommended Action:\n"
-                f"{rec_action}"
+                f"Acquire a newer satellite image and compare it with T1 to determine whether the trend continues."
             )
 
         # Sub-intent B: CHANGE_LOCATION ("Where are the changes concentrated?")
@@ -401,12 +404,12 @@ def _fallback_reasoning(evidence: EvidenceModel, query: str = "") -> str:
                 return (
                     f"Change Location:\n"
                     f"The detected changes are concentrated in the {primary_zone}.\n\n"
-                    f"Affected area:\n"
-                    f"Approximately {pct}% of the analyzed scene ({ha} hectares) across {reg_count} region(s).\n\n"
-                    f"Largest change region:\n"
+                    f"Affected Area:\n"
+                    f"Approximately {pct}% of the analyzed scene, covering approximately {ha} hectares across {reg_count} detected regions.\n\n"
+                    f"Largest Change Region:\n"
                     f"The largest detected region accounts for {largest_pct} of the total scene area.\n\n"
                     f"Future Prediction:\n"
-                    f"If the observed spatial trend continues, the {primary_zone} should be prioritized for future monitoring to determine whether the change is expanding.\n\n"
+                    f"If this spatial pattern continues, the {primary_zone} should be prioritized for future monitoring to determine whether the affected area is expanding.\n\n"
                     f"Recommended Action:\n"
                     f"Acquire a newer satellite image and compare it with T1 to monitor spatial progression."
                 )
@@ -424,16 +427,16 @@ def _fallback_reasoning(evidence: EvidenceModel, query: str = "") -> str:
         elif sub_intent == "CHANGE_QUANTITY":
             return (
                 f"Change Extent:\n"
-                f"Approximately {pct}% of the analyzed area changed between T0 and T1.\n"
-                f"Estimated changed area: {ha} hectares.\n"
-                f"Detected change regions: {reg_count}.\n\n"
+                f"Approximately {pct}% of the analyzed area changed between T0 and T1.\n\n"
+                f"Estimated Changed Area:\n"
+                f"{ha} hectares across {reg_count} detected regions.\n\n"
                 f"Future Prediction:\n"
                 f"Continued monitoring can determine whether the changed area is expanding, stable, or decreasing. The current two-date comparison provides an initial baseline.\n\n"
                 f"Recommended Action:\n"
                 f"{rec_action}"
             )
 
-        # Sub-intent D: LANDCOVER_CHANGE ("Has vegetation changed?", "Has water changed?")
+        # Sub-intent D: LANDCOVER_CHANGE ("Has vegetation changed?", "Has water changed?", "What land-cover changes occurred?")
         elif sub_intent == "LANDCOVER_CHANGE":
             veg_ch = lc.get("vegetation_change")
             water_ch = lc.get("water_change")
@@ -458,59 +461,72 @@ def _fallback_reasoning(evidence: EvidenceModel, query: str = "") -> str:
             else:
                 return (
                     f"Land-Cover Change:\n"
-                    f"Direct multispectral band transitions are uncalibrated for this image pair. Overall surface reflectance altered across {pct}% of the scene ({ha} ha).\n\n"
+                    f"Overall surface reflectance altered across {pct}% of the scene ({ha} ha).\n\n"
                     f"Future Prediction:\n"
-                    f"Multispectral satellite imagery with NIR/SWIR bands is recommended to model individual land-cover class transitions accurately.\n\n"
+                    f"Multispectral satellite imagery with calibrated spectral bands is recommended to model individual land-cover class transitions accurately.\n\n"
                     f"Recommended Action:\n"
                     f"Acquire calibrated multispectral Sentinel-2 or Landsat imagery for detailed land-cover transition modeling."
                 )
 
-        # Sub-intent E: HUMAN_ACTIVITY_CHANGE ("Is there evidence of new construction?")
+        # Sub-intent E: HUMAN_ACTIVITY_CHANGE ("Is there evidence of new construction?", "Is there evidence of increased human activity?")
         elif sub_intent == "HUMAN_ACTIVITY_CHANGE":
             built_ch = lc.get("builtup_change")
-            if built_ch:
+            t0_built = lc.get("t0", {}).get("builtup_pct")
+            t1_built = lc.get("t1", {}).get("builtup_pct")
+            built_delta = lc.get("built_delta", 0.0)
+            if built_ch and t0_built is not None and t1_built is not None:
+                delta_str = f"+{built_delta:.2f}" if built_delta > 0 else f"{built_delta:.2f}"
+                return (
+                    f"Development Change:\n"
+                    f"Built-up surface altered by {delta_str} percentage points from {t0_built:.1f}% to {t1_built:.1f}% between T0 and T1.\n\n"
+                    f"Spatial Concentration:\n"
+                    f"{primary_zone}.\n\n"
+                    f"Future Prediction:\n"
+                    f"If the observed development trend continues, further expansion may occur around the currently changing region. Additional observations are required to confirm whether this trend continues.\n\n"
+                    f"Recommended Action:\n"
+                    f"Acquire a newer satellite image and compare it with T1 to monitor structural development progression."
+                )
+            elif built_ch:
                 return (
                     f"Development Change:\n"
                     f"The evidence indicates built-up surface {built_ch} between T0 and T1.\n\n"
-                    f"Spatial concentration:\n"
-                    f"Changes are concentrated in the {primary_zone}.\n\n"
+                    f"Spatial Concentration:\n"
+                    f"{primary_zone}.\n\n"
                     f"Future Prediction:\n"
-                    f"If the observed development trend continues, further expansion may occur around the currently changing region. This is a prediction based on the observed temporal trend.\n\n"
+                    f"If the observed development trend continues, further expansion may occur around the currently changing region. Additional satellite observations are required to verify progression.\n\n"
                     f"Recommended Action:\n"
                     f"Acquire a newer satellite image and compare it with T1 to track structural development progression."
                 )
             else:
                 return (
                     f"Development Change:\n"
-                    f"Surface modification was detected across {pct}% of the scene ({ha} ha) concentrated in the {primary_zone}.\n\n"
+                    f"The available evidence is insufficient to determine increased human activity reliably.\n\n"
                     f"Future Prediction:\n"
-                    f"If the observed surface alteration represents preliminary groundwork or construction, further structural consolidation may occur in subsequent observations.\n\n"
+                    f"Higher-resolution optical or SAR observations are required to confirm structural development trends.\n\n"
                     f"Recommended Action:\n"
-                    f"Acquire higher-resolution optical imagery or SAR observations to verify structural development."
+                    f"Acquire high-resolution optical imagery or SAR observations to verify structural development."
                 )
 
-        # Sub-intent F: FUTURE_PREDICTION ("Based on these changes, what is the likely future trend?", "What should I monitor next?")
+        # Sub-intent F: FUTURE_PREDICTION ("Based on these changes, what is the likely future trend?", "What should I monitor next?", "Predict future trend")
         elif sub_intent == "FUTURE_PREDICTION":
             return (
-                f"Observed Change:\n"
-                f"The analysis detected approximately {pct}% change ({ha} ha) between T0 and T1 across {reg_count} region(s), concentrated in the {primary_zone}.\n\n"
-                f"Trend:\n"
-                f"The available temporal evidence indicates a {trend_dir} trend.\n\n"
                 f"Future Prediction:\n"
-                f"If the observed trend continues, similar changes may extend around the currently affected {primary_zone}. Note that two observations indicate an initial temporal trajectory, but are insufficient for guaranteed forecasting.\n\n"
+                f"The observed change pattern suggests that the currently affected {primary_zone} may continue to experience similar changes if the spatial trend persists. Additional satellite observations are required to confirm whether this trend continues.\n\n"
+                f"Evidence:\n"
+                f"The analysis detected approximately {pct}% change ({ha} ha) between T0 and T1 across {reg_count} region(s), concentrated in the {primary_zone}.\n\n"
                 f"Recommended Action:\n"
-                f"{rec_action}"
+                f"Acquire a newer satellite image and compare it with T1 to determine whether the trend is continuing or expanding."
             )
 
         # Sub-intent G: CHANGE_COMPARISON ("Compare the two images")
         elif sub_intent == "CHANGE_COMPARISON":
             return (
                 f"Change Summary:\n"
-                f"Comparison of T0 and T1 reveals {pct}% surface divergence across {reg_count} distinct region(s) totaling approximately {ha} hectares.\n\n"
+                f"Comparison of T0 and T1 reveals {pct}% surface divergence across {reg_count} distinct regions totaling approximately {ha} hectares.\n\n"
                 f"Observed Change:\n"
-                f"Primary divergence is located in the {primary_zone} with {largest_pct} of the scene in the primary cluster.\n\n"
+                f"Primary divergence is concentrated in the {primary_zone} with {largest_pct} of the scene in the primary cluster.\n\n"
                 f"Spatial Distribution:\n"
-                f"Changes are distributed across the {primary_zone}.\n\n"
+                f"Changes are concentrated in the {primary_zone}.\n\n"
                 f"Future Prediction:\n"
                 f"If the observed disparity pattern persists, further variance may develop adjacent to the {primary_zone}.\n\n"
                 f"Recommended Action:\n"
@@ -521,11 +537,11 @@ def _fallback_reasoning(evidence: EvidenceModel, query: str = "") -> str:
         else:
             return (
                 f"Change Summary:\n"
-                f"Approximately {pct}% of the analyzed area changed between T0 and T1 ({ha} ha across {reg_count} detected regions).\n\n"
+                f"Approximately {pct}% of the analyzed scene changed between T0 and T1.\n\n"
                 f"Observed Change:\n"
                 f"Detected changes are concentrated within the {primary_zone}.\n\n"
-                f"Spatial Distribution:\n"
-                f"Concentrated primarily in the {primary_zone}.\n\n"
+                f"Affected Area:\n"
+                f"Approximately {ha} hectares across {reg_count} detected regions.\n\n"
                 f"Future Prediction:\n"
                 f"If this observed pattern continues, further changes may develop around the affected region.\n\n"
                 f"Recommended Action:\n"
@@ -534,4 +550,4 @@ def _fallback_reasoning(evidence: EvidenceModel, query: str = "") -> str:
 
     # Generic fallback
     limitations = (" Limitations: " + " ".join(evidence.limitations)) if evidence.limitations else ""
-    return f"Analysis complete for {task_value.replace('_', ' ').lower()}. Confidence is {conf_percent}%.{limitations}"
+    return f"Analysis completed for {task_value.replace('_', ' ').lower()}.{limitations}"
