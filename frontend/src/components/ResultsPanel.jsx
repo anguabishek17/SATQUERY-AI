@@ -18,11 +18,13 @@ export default function ResultsPanel({ result }) {
       <div className="rounded border border-border bg-surface2 p-4">
         <div className="mb-2 flex items-center justify-between">
           <span className="font-mono text-[11px] uppercase tracking-wide text-coral">{result.task.replace(/_/g, ' ')}</span>
-          <ConfidenceBadge
-            confidence={result.confidence}
-            lowConfidence={result.low_confidence}
-            confidenceCalibrated={result.confidence_calibrated}
-          />
+          {!['change_vqa', 'change_description', 'change_detection'].includes(result.task) && (
+            <ConfidenceBadge
+              confidence={result.confidence}
+              lowConfidence={result.low_confidence}
+              confidenceCalibrated={result.confidence_calibrated}
+            />
+          )}
         </div>
         <p className="text-sm leading-relaxed text-ink whitespace-pre-line">{result.answer}</p>
 

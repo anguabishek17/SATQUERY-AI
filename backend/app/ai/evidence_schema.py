@@ -7,6 +7,7 @@ class EvidenceModel(BaseModel):
     This structured payload is the ONLY ground-truth data passed to the AI Reasoning layer.
     """
     task: str
+    sub_intent: Optional[str] = None
     status: str
     measurements: Dict[str, Any] = {}
     detections: Dict[str, Any] = {}
@@ -25,7 +26,17 @@ class EvidenceModel(BaseModel):
     correspondence: Optional[Dict[str, Any]] = None
     fusion: Optional[Dict[str, Any]] = None
     
+    # Bi-temporal structured blocks (Section 1)
+    temporal: Optional[Dict[str, Any]] = None
+    change_metrics: Optional[Dict[str, Any]] = None
+    spatial_distribution: Optional[Dict[str, Any]] = None
+    change_regions: Optional[List[Dict[str, Any]]] = None
+    landcover_change: Optional[Dict[str, Any]] = None
+    future_trend: Optional[Dict[str, Any]] = None
+    evidence_limitations: Optional[List[str]] = None
+
     confidence: float
     validation_status: Optional[str] = None
     limitations: List[str] = []
     source_tool: str
+

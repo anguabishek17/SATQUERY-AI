@@ -47,14 +47,58 @@ def build_evidence_json(query: str, task: TaskType, result: ToolResult) -> Evide
 
     # 3. Map Bi-Temporal Change Detection
     elif task in (TaskType.CHANGE_DETECTION, TaskType.change_description, TaskType.change_vqa):
-        if "pct_changed" in raw:
-            evidence.measurements = {
-                "changed_area_percent": raw["pct_changed"],
-                "changed_area_ha": metrics.get("area_ha", None),
-                "changed_regions": raw.get("num_clusters", 0)
-            }
-            evidence.change_evidence = dict(evidence.measurements)
-            evidence.spatial["region"] = raw.get("primary_change_zone", "unknown")
+        from app.controller.classifier import classify_change_sub_intent
+        sub_intent = classify_change_sub_intent(query)
+        evidence.sub_intent = sub_intent
+
+        pct_val = raw.get("pct_changed", metrics.get("pct_changed", 0.0))
+        ha_val = raw.get("changed_ha", metrics.get("changed_ha", metrics.get("area_ha", 0.0)))
+        num_reg = raw.get("num_regions", metrics.get("num_regions", raw.get("num_clusters", 1 if pct_val > 0 else 0)))
+        p_zone = raw.get("primary_change_zone", metrics.get("primary_zone", "unknown"))
+
+        evidence.measurements = {
+            "changed_area_percent": pct_val,
+            "changed_area_ha": ha_val,
+            "changed_regions": num_reg,
+        }
+        evidence.change_evidence = dict(evidence.measurements)
+        evidence.spatial["region"] = p_zone
+
+        # Section 1 Structured Blocks
+        evidence.temporal = raw.get("temporal", {
+            "t0_date": "T0",
+            "t1_date": "T1",
+            "time_interval": "bi-temporal pair"
+        })
+
+        evidence.change_metrics = raw.get("change_metrics", {
+            "changed_area_percent": pct_val,
+            "changed_area_hectares": ha_val,
+            "changed_region_count": num_reg,
+            "largest_change_region_percent": raw.get("largest_change_region_percent", f"{pct_val}%"),
+            "change_intensity": raw.get("change_intensity", "moderate" if pct_val > 1 else "low")
+        })
+
+        evidence.spatial_distribution = raw.get("spatial_distribution", {
+            "north": "unknown", "south": "unknown", "east": "unknown", "west": "unknown", "central": "unknown"
+        })
+
+        evidence.change_regions = raw.get("change_regions", [])
+        evidence.landcover_change = raw.get("landcover_change", {})
+        evidence.future_trend = raw.get("future_trend", {
+            "trend_direction": "stable",
+            "spatial_projection": f"If the observed spatial trend continues, subsequent changes may concentrate around the {p_zone}.",
+            "recommended_action": "Acquire a newer satellite image and compare it with T1 to verify whether the temporal trend continues.",
+            "observation_limitation": "The two available observations indicate a temporal trend, but they are insufficient for reliable long-term forecasting."
+        })
+
+        evidence.evidence_limitations = raw.get("evidence_limitations", [
+            "Analysis derived from bi-temporal co-registered pixel differencing.",
+            "Two observations indicate a temporal trend but are insufficient for long-term forecasting."
+        ])
+        for lim in evidence.evidence_limitations:
+            if lim not in evidence.limitations:
+                evidence.limitations.append(lim)
             
     # 4. Map Optical-SAR Fusion
     elif task in (TaskType.OPTICAL_SAR_FUSION, TaskType.SAR_ANALYSIS, TaskType.optical_sar_fusion):

@@ -356,6 +356,18 @@ def handle_query(
     if "Cross-modal optical and SAR fusion analysis reveals complementary physical characteristics" in final_answer:
         from app.ai.ai_reasoner import _fallback_reasoning
         final_answer = _fallback_reasoning(evidence, query)
+    
+    # Bi-temporal safeguard: ensure query-specific response, strip confidence, and ensure Future Prediction is present
+    if legacy_task in (TaskType.change_vqa, TaskType.change_description, TaskType.CHANGE_DETECTION) or evidence.temporal is not None:
+        import re
+        # Remove any leaked Confidence: XX% in text
+        final_answer = re.sub(r"Confidence\s+(is|:)\s*\d+%\.?", "", final_answer, flags=re.IGNORECASE).strip()
+        # If the answer collapsed to canned text or lacks Future Prediction, use query-specific fallback
+        if "across 0 distinct regions" in final_answer or "Future Prediction:" not in final_answer:
+            from app.ai.ai_reasoner import _fallback_reasoning
+            final_answer = _fallback_reasoning(evidence, query)
+            final_answer = re.sub(r"Confidence\s+(is|:)\s*\d+%\.?", "", final_answer, flags=re.IGNORECASE).strip()
+
     ms_total = int((time.time() - t_start) * 1000)
 
     yolo_executed = bool(

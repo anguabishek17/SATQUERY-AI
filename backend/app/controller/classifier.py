@@ -55,6 +55,70 @@ _ANALYTICAL_OVERRIDE_PATTERNS = [
 ]
 
 
+_PREDICTION_PATTERNS = [
+    r"\bpredict\b", r"\bfuture\b", r"\btrend\b", r"\bnext\b", r"\bexpect\b",
+    r"\bmonitor\s+next\b", r"\blikely\s+to\s+happen\b", r"\bprojection\b",
+]
+
+_CHANGE_LOCATION_PATTERNS = [
+    r"\bwhere\b", r"\bconcentrat", r"\bwhich region\b", r"\bwhich part\b",
+    r"\blocation\b", r"\bspatial\b", r"\bsector\b", r"\bcluster\b",
+]
+
+_CHANGE_QUANTITY_PATTERNS = [
+    r"\bhow much\b", r"\bpercentage\b", r"\bhectare", r"\bextent\b",
+    r"\bamount\b", r"\barea changed\b", r"\bwhat is the changed area\b",
+]
+
+_LANDCOVER_CHANGE_PATTERNS = [
+    r"\bvegetation\b", r"\bwater\b", r"\bforest\b", r"\btree\b",
+    r"\briver\b", r"\blake\b", r"\bgreenery\b", r"\bndvi\b", r"\bndwi\b",
+    r"\bbare\s+land\b", r"\bland.?cover\b",
+]
+
+_HUMAN_ACTIVITY_CHANGE_PATTERNS = [
+    r"\bconstruction\b", r"\bhuman activity\b", r"\bdeveloped\b", r"\bdevelopment\b",
+    r"\bbuilding\b", r"\burban\b", r"\binfrastructure\b", r"\bexpansion\b",
+    r"\bbuilt.?up\b",
+]
+
+_CHANGE_COMPARISON_PATTERNS = [
+    r"\bcompare\b", r"\bdifference\b", r"\bversus\b", r"\bvs\b",
+]
+
+
+def classify_change_sub_intent(query: str) -> str:
+    """
+    Classifies a bi-temporal / change query into one of the 8 supported sub-intents:
+      A. CHANGE_SUMMARY
+      B. CHANGE_LOCATION
+      C. CHANGE_QUANTITY
+      D. LANDCOVER_CHANGE
+      E. HUMAN_ACTIVITY_CHANGE
+      F. FUTURE_PREDICTION
+      G. CHANGE_COMPARISON
+      H. GENERAL_CHANGE_ANALYSIS
+    """
+    q = query.lower()
+
+    if _matches(_PREDICTION_PATTERNS, q):
+        return "FUTURE_PREDICTION"
+    if _matches(_CHANGE_LOCATION_PATTERNS, q):
+        return "CHANGE_LOCATION"
+    if _matches(_CHANGE_QUANTITY_PATTERNS, q):
+        return "CHANGE_QUANTITY"
+    if _matches(_LANDCOVER_CHANGE_PATTERNS, q):
+        return "LANDCOVER_CHANGE"
+    if _matches(_HUMAN_ACTIVITY_CHANGE_PATTERNS, q):
+        return "HUMAN_ACTIVITY_CHANGE"
+    if _matches(_CHANGE_COMPARISON_PATTERNS, q):
+        return "CHANGE_COMPARISON"
+    if _matches([r"\bwhat major\b", r"\bwhat changed\b", r"\bmajor differences\b", r"\bsummar"], q):
+        return "CHANGE_SUMMARY"
+
+    return "GENERAL_CHANGE_ANALYSIS"
+
+
 def _matches(patterns: list[str], text: str) -> bool:
     text = text.lower()
     return any(re.search(p, text) for p in patterns)
@@ -67,6 +131,8 @@ def classify(query: str, input_config: InputConfig) -> TaskType:
     text then picks among the remaining valid tasks.
     """
     if input_config == InputConfig.bi_temporal:
+        if _matches(_PREDICTION_PATTERNS, query):
+            return TaskType.CHANGE_DETECTION
         if _matches(_CAPTION_PATTERNS, query) and not _matches(_CHANGE_PATTERNS, query):
             return TaskType.change_description
         return TaskType.CHANGE_DETECTION

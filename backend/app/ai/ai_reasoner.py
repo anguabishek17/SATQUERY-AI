@@ -63,6 +63,12 @@ def generate_ai_reasoning(query: str, evidence: EvidenceModel) -> str:
         client = _get_client(api_key)
         
         task_str = str(evidence.task or "").lower()
+        sub_intent = getattr(evidence, "sub_intent", None) or "GENERAL_CHANGE_ANALYSIS"
+        is_change = (
+            "change" in task_str
+            or evidence.change_metrics is not None
+            or evidence.temporal is not None
+        )
         is_fusion = (
             "fusion" in task_str
             or "sar" in task_str
@@ -71,7 +77,59 @@ def generate_ai_reasoning(query: str, evidence: EvidenceModel) -> str:
             or "optical and sar" in query.lower()
         )
 
-        if is_fusion:
+        if is_change:
+            prompt = (
+                "You are SatQuery AI, an explainable remote-sensing assistant.\n"
+                "You must answer the user's question using ONLY the provided Evidence JSON.\n\n"
+                "CRITICAL RULES FOR BI-TEMPORAL / CHANGE DETECTION QUERIES:\n"
+                "1. STRICT GROUNDING IN EVIDENCE JSON:\n"
+                "   - Use only the measurements, spatial distribution, change metrics, and landcover deltas in Evidence JSON.\n"
+                "   - NEVER invent change percentages, region counts, land-cover transitions, causes, or future events.\n"
+                "   - If Evidence JSON does not contain sufficient information, state: 'The available evidence is insufficient to determine this reliably.'\n"
+                "2. NO CONFIDENCE IN RESPONSE:\n"
+                "   - DO NOT mention confidence percentages (e.g. NEVER output 'Confidence: 88%').\n"
+                "3. MANDATORY FUTURE PREDICTION:\n"
+                "   - EVERY response MUST include a section header: 'Future Prediction:'\n"
+                "   - The prediction must be cautious, explainable, and trend-based based on the observed evidence.\n"
+                "   - Use terms such as 'may', 'could', 'likely', 'if the observed trend continues'.\n"
+                "   - NEVER use 'will definitely', 'will happen', 'guaranteed'.\n"
+                "   - For two observations (T0 and T1), note that two observations are insufficient for long-term forecasting and recommend a subsequent observation.\n"
+                "4. QUERY-SPECIFIC STRUCTURED SECTIONS:\n"
+                f"   - Classified sub-intent: {sub_intent}\n"
+                "   - For CHANGE_SUMMARY ('What major changes occurred?', 'What changed?'):\n"
+                "     Change Summary: [Approximately X% changed between T0 and T1, covering Y ha across Z regions]\n\n"
+                "     Observed Change: [Key evidence-supported change observations]\n\n"
+                "     Future Prediction: [Evidence-based cautious projection]\n\n"
+                "     Recommended Action: [Subsequent observation / monitoring recommendation]\n\n"
+                "   - For CHANGE_LOCATION ('Where are the changes concentrated?', 'Where did changes occur?'):\n"
+                "     Change Location: [Concentrated in supported region, e.g. spatial_distribution or primary zone]\n\n"
+                "     Affected area: [X% of analyzed scene / Y hectares]\n\n"
+                "     Largest change region: [Supported largest region details from Evidence JSON]\n\n"
+                "     Future Prediction: [If observed spatial trend continues, affected region should be prioritized for monitoring]\n\n"
+                "     Recommended Action: [Next observation recommendation]\n\n"
+                "   - For CHANGE_QUANTITY ('How much area changed?', 'What percentage changed?'):\n"
+                "     Change Extent: [X% of analyzed area, Y hectares, Z detected regions]\n\n"
+                "     Future Prediction: [Continued monitoring can determine whether changed area is expanding, stable, or decreasing]\n\n"
+                "     Recommended Action: [Next observation recommendation]\n\n"
+                "   - For LANDCOVER_CHANGE ('Has vegetation increased or decreased?', 'Has water changed?'):\n"
+                "     Land-Cover Change: [Report specific delta metrics from landcover_change, e.g. vegetation from X% to Y%]\n\n"
+                "     Future Prediction: [Cautious trend projection based on observed delta]\n\n"
+                "     Recommended Action: [Verification recommendation]\n\n"
+                "   - For HUMAN_ACTIVITY_CHANGE ('Is there evidence of new construction / development?'):\n"
+                "     Development Change: [Built-up surface delta from landcover_change, only if supported]\n\n"
+                "     Spatial concentration: [Location only if supported]\n\n"
+                "     Future Prediction: [Cautious projection on development trend]\n\n"
+                "     Recommended Action: [Subsequent imagery recommendation]\n\n"
+                "   - For FUTURE_PREDICTION ('Based on these changes, what is the likely future trend?', 'Predict future trend'):\n"
+                "     Observed Change: [What actually changed between T0 and T1 from Evidence JSON]\n\n"
+                "     Trend: [Increasing / decreasing / stable / insufficient evidence]\n\n"
+                "     Future Prediction: [Cautious projection using 'may'/'could'/'likely', noting 2 images are insufficient for long-term forecasting]\n\n"
+                "     Recommended Action: [Acquire newer satellite image and compare with T1]\n\n"
+                f"User Query: {query}\n\n"
+                f"Evidence JSON:\n{json.dumps(evidence.model_dump(), indent=2)}\n\n"
+                "Return: The exact structured evidence-grounded response answering the specific question asked."
+            )
+        elif is_fusion:
             prompt = (
                 "You are SatQuery AI, an explainable remote-sensing assistant.\n"
                 "You must answer the user's question using ONLY the provided Evidence JSON.\n\n"
@@ -307,14 +365,172 @@ def _fallback_reasoning(evidence: EvidenceModel, query: str = "") -> str:
             ans += " " + " ".join(evidence.limitations)
         return ans.strip()
 
-    # 5. CHANGE DETECTION
-    elif "change" in task_value:
-        changed_pct = m.get("changed_area_percent", "an unknown")
-        clusters = m.get("changed_regions", "multiple")
-        ans = f"Detected significant surface changes covering approximately {changed_pct}% of the area across {clusters} distinct regions. Confidence is {conf_percent}%."
-        if evidence.limitations:
-            ans += " " + " ".join(evidence.limitations)
-        return ans.strip()
+    # 5. BI-TEMPORAL CHANGE DETECTION (Query-Specific Structured Answers)
+    elif "change" in task_value or evidence.change_metrics is not None or evidence.temporal is not None:
+        from app.controller.classifier import classify_change_sub_intent
+        sub_intent = getattr(evidence, "sub_intent", None) or classify_change_sub_intent(query)
+        cm = evidence.change_metrics or {}
+        pct = cm.get("changed_area_percent", m.get("changed_area_percent", 0.0))
+        ha = cm.get("changed_area_hectares", m.get("changed_area_ha", 0.0))
+        reg_count = cm.get("changed_region_count", m.get("changed_regions", 1 if pct > 0 else 0))
+        primary_zone = evidence.spatial.get("region", "primary change zone")
+        sd = evidence.spatial_distribution or {}
+        lc = evidence.landcover_change or {}
+        ft = evidence.future_trend or {}
+        largest_pct = cm.get("largest_change_region_percent", f"{pct}%")
+        trend_dir = ft.get("trend_direction", "stable")
+        rec_action = ft.get("recommended_action", "Compare T1 with a newer satellite image to confirm whether the trend continues.")
+
+        # Sub-intent A: CHANGE_SUMMARY ("What major changes occurred?", "What changed?")
+        if sub_intent == "CHANGE_SUMMARY":
+            return (
+                f"Change Summary:\n"
+                f"Approximately {pct}% of the analyzed area changed between T0 and T1, covering approximately {ha} hectares across {reg_count} detected region(s).\n\n"
+                f"Observed Change:\n"
+                f"• Significant surface change concentrated within the {primary_zone} with {largest_pct} accounted for by the primary region.\n"
+                f"• Change intensity across the scene is classified as {cm.get('change_intensity', 'moderate')}.\n\n"
+                f"Future Prediction:\n"
+                f"If this observed pattern continues, further changes may occur around the affected region. The two available observations indicate a temporal trend, but a subsequent observation is recommended to confirm whether the trend continues.\n\n"
+                f"Recommended Action:\n"
+                f"{rec_action}"
+            )
+
+        # Sub-intent B: CHANGE_LOCATION ("Where are the changes concentrated?")
+        elif sub_intent == "CHANGE_LOCATION":
+            if primary_zone and primary_zone != "unknown" and primary_zone != "no significant zone":
+                return (
+                    f"Change Location:\n"
+                    f"The detected changes are concentrated in the {primary_zone}.\n\n"
+                    f"Affected area:\n"
+                    f"Approximately {pct}% of the analyzed scene ({ha} hectares) across {reg_count} region(s).\n\n"
+                    f"Largest change region:\n"
+                    f"The largest detected region accounts for {largest_pct} of the total scene area.\n\n"
+                    f"Future Prediction:\n"
+                    f"If the observed spatial trend continues, the {primary_zone} should be prioritized for future monitoring to determine whether the change is expanding.\n\n"
+                    f"Recommended Action:\n"
+                    f"Acquire a newer satellite image and compare it with T1 to monitor spatial progression."
+                )
+            else:
+                return (
+                    f"Change Location:\n"
+                    f"The available evidence identifies {pct}% changed area ({ha} ha), but does not provide reliable spatial localization.\n\n"
+                    f"Future Prediction:\n"
+                    f"Additional temporally aligned imagery is required to determine the future spatial trend reliably.\n\n"
+                    f"Recommended Action:\n"
+                    f"Acquire spatially registered high-resolution imagery for subsequent observation."
+                )
+
+        # Sub-intent C: CHANGE_QUANTITY ("How much area changed?", "What percentage changed?")
+        elif sub_intent == "CHANGE_QUANTITY":
+            return (
+                f"Change Extent:\n"
+                f"Approximately {pct}% of the analyzed area changed between T0 and T1.\n"
+                f"Estimated changed area: {ha} hectares.\n"
+                f"Detected change regions: {reg_count}.\n\n"
+                f"Future Prediction:\n"
+                f"Continued monitoring can determine whether the changed area is expanding, stable, or decreasing. The current two-date comparison provides an initial baseline.\n\n"
+                f"Recommended Action:\n"
+                f"{rec_action}"
+            )
+
+        # Sub-intent D: LANDCOVER_CHANGE ("Has vegetation changed?", "Has water changed?")
+        elif sub_intent == "LANDCOVER_CHANGE":
+            veg_ch = lc.get("vegetation_change")
+            water_ch = lc.get("water_change")
+            built_ch = lc.get("builtup_change")
+            if veg_ch or water_ch or built_ch:
+                obs_lines = []
+                if veg_ch:
+                    obs_lines.append(f"Vegetation: {veg_ch}.")
+                if water_ch:
+                    obs_lines.append(f"Water: {water_ch}.")
+                if built_ch:
+                    obs_lines.append(f"Built-up: {built_ch}.")
+                obs_text = "\n".join(obs_lines)
+                return (
+                    f"Land-Cover Change:\n"
+                    f"{obs_text}\n\n"
+                    f"Future Prediction:\n"
+                    f"If this observed trend continues in subsequent imagery, the affected land-cover classes may continue to expand or decline. This is a trend-based projection, not a guaranteed outcome.\n\n"
+                    f"Recommended Action:\n"
+                    f"{rec_action}"
+                )
+            else:
+                return (
+                    f"Land-Cover Change:\n"
+                    f"Direct multispectral band transitions are uncalibrated for this image pair. Overall surface reflectance altered across {pct}% of the scene ({ha} ha).\n\n"
+                    f"Future Prediction:\n"
+                    f"Multispectral satellite imagery with NIR/SWIR bands is recommended to model individual land-cover class transitions accurately.\n\n"
+                    f"Recommended Action:\n"
+                    f"Acquire calibrated multispectral Sentinel-2 or Landsat imagery for detailed land-cover transition modeling."
+                )
+
+        # Sub-intent E: HUMAN_ACTIVITY_CHANGE ("Is there evidence of new construction?")
+        elif sub_intent == "HUMAN_ACTIVITY_CHANGE":
+            built_ch = lc.get("builtup_change")
+            if built_ch:
+                return (
+                    f"Development Change:\n"
+                    f"The evidence indicates built-up surface {built_ch} between T0 and T1.\n\n"
+                    f"Spatial concentration:\n"
+                    f"Changes are concentrated in the {primary_zone}.\n\n"
+                    f"Future Prediction:\n"
+                    f"If the observed development trend continues, further expansion may occur around the currently changing region. This is a prediction based on the observed temporal trend.\n\n"
+                    f"Recommended Action:\n"
+                    f"Acquire a newer satellite image and compare it with T1 to track structural development progression."
+                )
+            else:
+                return (
+                    f"Development Change:\n"
+                    f"Surface modification was detected across {pct}% of the scene ({ha} ha) concentrated in the {primary_zone}.\n\n"
+                    f"Future Prediction:\n"
+                    f"If the observed surface alteration represents preliminary groundwork or construction, further structural consolidation may occur in subsequent observations.\n\n"
+                    f"Recommended Action:\n"
+                    f"Acquire higher-resolution optical imagery or SAR observations to verify structural development."
+                )
+
+        # Sub-intent F: FUTURE_PREDICTION ("Based on these changes, what is the likely future trend?", "What should I monitor next?")
+        elif sub_intent == "FUTURE_PREDICTION":
+            return (
+                f"Observed Change:\n"
+                f"The analysis detected approximately {pct}% change ({ha} ha) between T0 and T1 across {reg_count} region(s), concentrated in the {primary_zone}.\n\n"
+                f"Trend:\n"
+                f"The available temporal evidence indicates a {trend_dir} trend.\n\n"
+                f"Future Prediction:\n"
+                f"If the observed trend continues, similar changes may extend around the currently affected {primary_zone}. Note that two observations indicate an initial temporal trajectory, but are insufficient for guaranteed forecasting.\n\n"
+                f"Recommended Action:\n"
+                f"{rec_action}"
+            )
+
+        # Sub-intent G: CHANGE_COMPARISON ("Compare the two images")
+        elif sub_intent == "CHANGE_COMPARISON":
+            return (
+                f"Change Summary:\n"
+                f"Comparison of T0 and T1 reveals {pct}% surface divergence across {reg_count} distinct region(s) totaling approximately {ha} hectares.\n\n"
+                f"Observed Change:\n"
+                f"Primary divergence is located in the {primary_zone} with {largest_pct} of the scene in the primary cluster.\n\n"
+                f"Spatial Distribution:\n"
+                f"Changes are distributed across the {primary_zone}.\n\n"
+                f"Future Prediction:\n"
+                f"If the observed disparity pattern persists, further variance may develop adjacent to the {primary_zone}.\n\n"
+                f"Recommended Action:\n"
+                f"{rec_action}"
+            )
+
+        # Sub-intent H: GENERAL_CHANGE_ANALYSIS
+        else:
+            return (
+                f"Change Summary:\n"
+                f"Approximately {pct}% of the analyzed area changed between T0 and T1 ({ha} ha across {reg_count} detected regions).\n\n"
+                f"Observed Change:\n"
+                f"Detected changes are concentrated within the {primary_zone}.\n\n"
+                f"Spatial Distribution:\n"
+                f"Concentrated primarily in the {primary_zone}.\n\n"
+                f"Future Prediction:\n"
+                f"If this observed pattern continues, further changes may develop around the affected region.\n\n"
+                f"Recommended Action:\n"
+                f"{rec_action}"
+            )
 
     # Generic fallback
     limitations = (" Limitations: " + " ".join(evidence.limitations)) if evidence.limitations else ""

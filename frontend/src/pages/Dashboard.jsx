@@ -438,8 +438,8 @@ export default function Dashboard() {
                       {msg.text}
                     </div>
 
-                    {/* Metadata badges if present */}
-                    {msg.confidence !== undefined && (
+                    {/* Metadata badges if present — hide confidence for bi-temporal per requirement 14 */}
+                    {msg.confidence !== undefined && msg.task !== 'change_vqa' && msg.task !== 'change_description' && msg.task !== 'change_detection' && (
                       <div className="mt-2.5 pt-2 border-t border-slate-700/50 flex items-center justify-between text-[11px] font-mono">
                         <span className="text-slate-400">Confidence:</span>
                         <strong className={msg.confidence > 0.6 ? 'text-emerald-400' : 'text-amber-400'}>
