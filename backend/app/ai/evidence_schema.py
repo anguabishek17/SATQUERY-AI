@@ -18,7 +18,13 @@ class EvidenceModel(BaseModel):
     landcover_evidence: Optional[Dict[str, Any]] = None
     change_evidence: Optional[Dict[str, Any]] = None
     fusion_evidence: Optional[Dict[str, Any]] = None
+
+    # Modality-separated evidence blocks for cross-modal fusion
+    optical: Optional[Dict[str, Any]] = None
+    sar: Optional[Dict[str, Any]] = None
+    fusion: Optional[Dict[str, Any]] = None
     
     confidence: float
+    validation_status: Optional[str] = None
     limitations: List[str] = []
     source_tool: str

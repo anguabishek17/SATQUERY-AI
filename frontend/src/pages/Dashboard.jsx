@@ -333,7 +333,7 @@ export default function Dashboard() {
                       : 'bg-[#1E293B] text-slate-200 border border-slate-700/80 shadow'
                   }`}
                 >
-                  <p>{msg.text}</p>
+                  <p className="whitespace-pre-line">{msg.text}</p>
 
                   {/* Message Metadata Badges */}
                   {msg.confidence !== undefined && (
@@ -500,7 +500,7 @@ export default function Dashboard() {
               </span>
             </div>
 
-            <p className="text-xs text-slate-300 leading-relaxed font-sans">
+            <p className="text-xs text-slate-300 leading-relaxed font-sans whitespace-pre-line">
               {result?.answer || 'Execute a satellite query above to generate remote-sensing insights and physical metric breakdown.'}
             </p>
           </div>

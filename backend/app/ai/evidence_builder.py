@@ -105,6 +105,54 @@ def build_evidence_json(query: str, task: TaskType, result: ToolResult) -> Evide
             "confidence_percent": int(result.confidence * 100) if result.confidence else int(agr_pct)
         }
 
+        # Modality-separated blocks conforming to Section 8 Evidence JSON specification
+        evidence.optical = {
+            "available": True,
+            "metrics": {
+                "water_pct": optical_water,
+                "vegetation_pct": veg_pct,
+                "builtup_pct": built_agree
+            },
+            "detected_regions": [
+                {"label": "vegetation", "percent": veg_pct},
+                {"label": "water", "percent": optical_water},
+                {"label": "built_up", "percent": built_agree}
+            ],
+            "spatial_features": ["Full scene spectral reflectance", "Co-registered grid"]
+        }
+
+        evidence.sar = {
+            "available": True,
+            "metrics": {
+                "water_pct": sar_water,
+                "builtup_pct": built_agree,
+                "mean_backscatter_db": sar_mean_db,
+                "std_backscatter_db": raw.get("sar_std_db")
+            },
+            "detected_regions": [
+                {"label": "specular_low_backscatter_water", "percent": sar_water},
+                {"label": "high_backscatter_builtup", "percent": built_agree}
+            ],
+            "spatial_features": ["Lee despeckle filtered", "VV polarization backscatter"]
+        }
+
+        evidence.fusion = {
+            "agreement": agr_score,
+            "agreement_pct": agr_pct,
+            "overlap": {
+                "water_agreement_pct": water_agree,
+                "builtup_agreement_pct": built_agree
+            },
+            "disagreement_pct": disagree_pct,
+            "spatial_disagreement": [],
+            "spatial_disagreement_measurements_available": False,
+            "spatial_disagreement_status": "The current Evidence JSON does not contain sufficient spatial disagreement measurements to identify exact disagreement regions.",
+            "alignment": {
+                "resampled": raw.get("optical_meta", {}).get("resampled", False),
+                "grid": "SAR aligned to Optical grid"
+            }
+        }
+
     # General spatial capture
     if result.bounding_boxes:
         evidence.detections["bbox_count"] = len(result.bounding_boxes)

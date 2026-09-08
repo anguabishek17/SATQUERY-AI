@@ -24,7 +24,7 @@ export default function ResultsPanel({ result }) {
             confidenceCalibrated={result.confidence_calibrated}
           />
         </div>
-        <p className="text-sm leading-relaxed text-ink">{result.answer}</p>
+        <p className="text-sm leading-relaxed text-ink whitespace-pre-line">{result.answer}</p>
 
         {result.object_counts?.length > 0 && (
           <div className="mt-3 grid grid-cols-2 gap-2">

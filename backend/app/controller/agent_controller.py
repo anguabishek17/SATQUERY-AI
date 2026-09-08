@@ -341,12 +341,21 @@ def handle_query(
     validation_result = validate_reasoning(reasoning, evidence)
     ms_val = int((time.time() - t0_val) * 1000)
     
+    val_status = validation_result.get("status", "VALIDATED" if validation_result.get("valid") else "VALIDATION_FAILED")
+    val_pass = validation_result.get("valid", False)
+    val_reason = validation_result.get("reason", "")
+    evidence.validation_status = val_status
+
     trace.append(ExecutionStep(
         step="evidence_validation",
-        detail=f"validation pass={validation_result['valid']}; reason='{validation_result['reason']}'"
+        detail=f"status={val_status}; pass={val_pass}; reason='{val_reason}'"
     ))
 
-    final_answer = validation_result['corrected_answer']
+    final_answer = validation_result.get("corrected_answer", reasoning)
+    # Anti-generic safeguard: if answer contains boilerplate textbook text, use deterministic evidence-based fallback
+    if "Cross-modal optical and SAR fusion analysis reveals complementary physical characteristics" in final_answer:
+        from app.ai.ai_reasoner import _fallback_reasoning
+        final_answer = _fallback_reasoning(evidence, query)
     ms_total = int((time.time() - t_start) * 1000)
 
     yolo_executed = bool(
